@@ -26,6 +26,7 @@ import org.apache.spark.mllib.util.LinearDataGenerator
 import org.apache.spark.ml.tuning.{ CrossValidator, ParamGridBuilder }
 import org.apache.spark.ml.evaluation.RegressionEvaluator
 import org.apache.spark.ml.regression.LinearRegressionWithCD
+import org.apache.spark.mllib.util.MLUtils
 
 /**
  * A simple example demonstrating model selection using CrossValidator.
@@ -52,7 +53,12 @@ object CrossValidatorExample {
     // Prepare training documents, which are labeled.
     //LinearDataGenerator.generateLinearRDD(sc, numGenExamples, numGenFeatures, eps, numGenPartitions)
     //val training = LinearDataGenerator.generateLinearRDD(sc, 12, 10, 10)
-    val training = LinearDataGenerator.generateLinearRDD(sc, 10, 10, 10)
+    val training = LinearDataGenerator.generateLinearRDD(sc, 10000, 10, 10)
+
+    
+        //val path = "data/sample_linear_regression_data.txt"
+    //val path = "data/sample_linear_regression_data_fold2.txt"
+    //val training = MLUtils.loadLibSVMFile(sc, path)
 
     // Configure an ML pipeline, which consists of three stages: tokenizer, hashingTF, and lr.
     //    val tokenizer = new Tokenizer()
