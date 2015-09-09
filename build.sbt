@@ -15,7 +15,7 @@ fork in run := true
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
   "org.apache.spark" %% "spark-sql" % "1.4.1" % "provided",
-//  "org.apache.spark" %% "spark-mllib" % "1.4.1" % "provided",
+  "org.apache.spark" %% "spark-mllib" % "1.4.1" % "provided",
   "com.github.fommil.netlib" % "all" % "1.1.2" pomOnly(),
   "org.scalanlp" %% "breeze" % "0.11.2",
   "org.apache.commons" % "commons-lang3" % "3.0",
