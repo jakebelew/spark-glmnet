@@ -52,10 +52,10 @@ object LinearRegressionWithCDExample {
     import sqlContext.implicits._
 
     //val training = LinearDataGenerator.generateLinearRDD(sc, 10, 10, 10)
-    val path = "data/sample_linear_regression_data.txt"
-    //val path = "data/sample_linear_regression_data_fold2.txt"
+    //val path = "data/sample_linear_regression_data.txt"
+    val path = "data/sample_linear_regression_data_fold2.txt"
     val training = MLUtils.loadLibSVMFile(sc, path)
-    println(s"training: ${training.collect.mkString("\n")}")
+    //println(s"training: ${training.collect.mkString("\n")}")
 
     val lr = new LinearRegressionWithCD("")
       .setMaxIter(100)

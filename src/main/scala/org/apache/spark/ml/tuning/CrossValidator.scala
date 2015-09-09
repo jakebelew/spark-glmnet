@@ -118,7 +118,7 @@ println("CrossValidator - new Fold")
       val validationDataset = sqlCtx.createDataFrame(validation, schema).cache()
       // multi-model training
       logDebug(s"Train split $splitIndex with multiple sets of parameters.")
-      println(s"CV trainingDataset: ${trainingDataset.collect.mkString("\n")}")
+      //println(s"CV trainingDataset: ${trainingDataset.collect.mkString("\n")}")
       val models = est.fit(trainingDataset, epm).asInstanceOf[Seq[Model[_]]]
       trainingDataset.unpersist()
       var i = 0
@@ -140,7 +140,7 @@ println("CrossValidator - new Fold")
     println(s"Best set of parameters:\n${epm(bestIndex)}")
 println(s"Best cross-validation metric: $bestMetric.")
 println("CrossValidator - Best Model")      
-      println(s"CV dataset: ${dataset.collect.mkString("\n")}")
+      //println(s"CV dataset: ${dataset.collect.mkString("\n")}")
     val bestModel = est.fit(dataset, epm(bestIndex)).asInstanceOf[Model[_]]
     copyValues(new CrossValidatorModel(uid, bestModel).setParent(this))
   }

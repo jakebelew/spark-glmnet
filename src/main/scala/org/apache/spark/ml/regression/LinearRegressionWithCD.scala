@@ -40,14 +40,32 @@ import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
 import org.apache.spark.mllib.optimization.CoordinateDescent
 import scala.collection.mutable.MutableList
+import org.apache.spark.ml.param.Params
+import org.apache.spark.ml.param.IntParam
+import org.apache.spark.ml.param.ParamValidators
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
+
+///**
+// * (private[ml]) Trait for shared param maxIter.
+// */
+private[ml] trait HasLambdaIndex extends Params {
+
+  /**
+   * Param for lambda index (>= 0).
+   * @group param
+   */
+  final val lambdaIndex: IntParam = new IntParam(this, "lambdaIndex", "lambda index (>= 0)", ParamValidators.gtEq(0))
+
+  /** @group getParam */
+  final def getLambdaIndex: Int = $(lambdaIndex)
+}
 
 /**
  * Params for linear regression.
  */
 private[regression] trait LinearRegressionWithCDParams extends PredictorParams
-  with HasRegParam with HasElasticNetParam with HasMaxIter with HasTol
+  with HasRegParam with HasElasticNetParam with HasMaxIter with HasTol with HasLambdaIndex
 
 /**
  * :: Experimental ::
@@ -173,6 +191,7 @@ class LinearRegressionWithCD(override val uid: String)
     val initialWeights = Vectors.zeros(numFeatures)
 
     val boundaryIndexes = new Range(0, paramMaps.length, 100)
+    println(s"boundaryIndexes: ${boundaryIndexes.mkString(",")}, paramMaps.length: ${paramMaps.length}")
     val models = new MutableList[LinearRegressionWithCDModel]
 
     val xy = CoordinateDescent.computeXY(normalizedInstances, numFeatures, numRows)
@@ -181,15 +200,16 @@ class LinearRegressionWithCD(override val uid: String)
     boundaryIndexes.foreach(index => {
       println(s"boundary index: ${index}")
       //copy(paramMap).fit(dataset)    
-      val en = elasticNetParam
+      //val en = elasticNetParam
       val alphaS = paramMaps(index).get(elasticNetParam).getOrElse(1.0)
       val optimizer = new CoordinateDescent()
+        //.setAlpha($(elasticNetParam))
         .setAlpha(alphaS)
 
       //def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
 
       val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, numFeatures, numRows).unzip
-rawWeights.foreach(item => println(s"${item.toArray.mkString(",")}"))
+      rawWeights.foreach(item => println(s"${item.toArray.mkString(",")}"))
 
       //println(s"#rawWeights: ${rawWeights.length}, #models: ${models.length}")
       val subModels = rawWeights.map(rw => createModel(rw.toArray, yMean, yStd, featuresMean, featuresStd))
@@ -197,7 +217,7 @@ rawWeights.foreach(item => println(s"${item.toArray.mkString(",")}"))
       models ++= subModels
       println(s"#rawWeights: ${rawWeights.length}, #models: ${models.length}")
 
-      populateParamMap(paramMaps, index, lambdas)
+      //populateParamMap(paramMaps, index, lambdas)
     })
     //loop end
 
@@ -223,25 +243,25 @@ rawWeights.foreach(item => println(s"${item.toArray.mkString(",")}"))
     models
   }
 
-  private def populateParamMap(paramMaps: Array[ParamMap], boundaryIndex: Int, lambdas: List[Double]): Unit = {
-    //println(s"paramMaps.length: ${paramMaps.length}")
-    val numLambdas = lambdas.length
-    val rp = regParam
-
-    paramMaps.drop(boundaryIndex).zip(lambdas).map({
-      case (pm, lambda) => {
-        //println(s"index: ${(i % numLambdas)}, lambda(index): ${lambdas(i % numLambdas)}")
-        pm.put(rp.w(lambda))
-      }
-    })
-    //    paramMaps.zipWithIndex.map({
-    //      case (pm, i) => {
-    //        println(s"index: ${(i % numLambdas)}, lambda(index): ${lambdas(i % numLambdas)}")
-    //        pm.put(rp.w(lambdas(i % numLambdas)))
-    //      }
-    //    })
-    //println(s"paramMaps.length: ${paramMaps.length}")
-  }
+//  private def populateParamMap(paramMaps: Array[ParamMap], boundaryIndex: Int, lambdas: List[Double]): Unit = {
+//    //println(s"paramMaps.length: ${paramMaps.length}")
+//    val numLambdas = lambdas.length
+//    val rp = regParam
+//
+//    paramMaps.drop(boundaryIndex).zip(lambdas).map({
+//      case (pm, lambda) => {
+//        //println(s"index: ${(i % numLambdas)}, lambda(index): ${lambdas(i % numLambdas)}")
+//        pm.put(rp.w(lambda))
+//      }
+//    })
+//    //    paramMaps.zipWithIndex.map({
+//    //      case (pm, i) => {
+//    //        println(s"index: ${(i % numLambdas)}, lambda(index): ${lambdas(i % numLambdas)}")
+//    //        pm.put(rp.w(lambdas(i % numLambdas)))
+//    //      }
+//    //    })
+//    //println(s"paramMaps.length: ${paramMaps.length}")
+//  }
 
   private def normalizeDataSet(dataset: DataFrame): (RDD[(Double, Vector)], StandardScalerModel) = {
     val instances = extractLabeledPoints(dataset).map {
@@ -360,16 +380,17 @@ rawWeights.foreach(item => println(s"${item.toArray.mkString(",")}"))
 
     //val optimizer = new CoordinateDescent()
     //.setNumIterations(maxIter)
-      val optimizer = new CoordinateDescent()
-        .setAlpha($(elasticNetParam))
-        
+    val optimizer = new CoordinateDescent()
+      .setAlpha($(elasticNetParam))
+
     val xy = CoordinateDescent.computeXY(normalizedInstances, numFeatures, numRows)
 
     //  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambda: Double, numFeatures: Int, numRows: Long): Vector = {
     //val rawWeights = optimizer.optimizeSingleModel(normalizedInstances, initialWeights, numFeatures, numRows).toArray
-    val lambda = $(regParam)
-    println(s"Best Fit Lambda: ${lambda}")
-    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, lambda, numFeatures, numRows).toArray
+    //val lambda = $(regParam)
+    //val lambda = $(regParam)
+    println(s"Best Fit Lambda: ${$(lambdaIndex)}")
+    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), numFeatures, numRows).toArray
 
     val weights = {
       /*

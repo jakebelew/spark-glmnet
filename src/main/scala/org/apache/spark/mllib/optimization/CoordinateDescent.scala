@@ -110,7 +110,7 @@ class CoordinateDescent private[spark]
       numFeatures, numRows)
   }
 
-  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambda: Double, numFeatures: Int, numRows: Long): Vector = {
+  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
     CoordinateDescent.runCD2(
       data,
       initialWeights,
@@ -118,7 +118,7 @@ class CoordinateDescent private[spark]
       alpha,
       lamShrnk,
       numIterations,
-      lambda,
+      lambdaIndex,
       numFeatures, numRows)
   }
 }
@@ -153,26 +153,27 @@ object CoordinateDescent extends Logging {
    */
 
   def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
-    println(s"data1: ${data.collect.mkString("\n")}")
+    //println(s"data1: ${data.collect.mkString("\n")}")
     val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, numRows): Array[Double]
     println(s"lambdas: ${lambdas.mkString(";")}")
     optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, numFeatures, numRows)
   }
 
-  def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, lambda: Double, numFeatures: Int, numRows: Long): Vector = {
+  def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
     //println(s"alpha: $alpha")
-    println(s"data2: ${data.collect.mkString("\n")}")
+    //println(s"data2: ${data.collect.mkString("\n")}")
     //println(s"data2: ${data}")
-    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, numRows): Array[Double]
+    val lambdas = computeLambdas(xy, alpha, lamShrnk, lambdaIndex + 1, numRows): Array[Double]
 
-    println(s"lambdas: ${lambdas.mkString(";")}, lambda: $lambda")
-    val lambdaIndex = indexOfClosestLambda(lambdas, lambda)
+    //println(s"lambdas: ${lambdas.mkString(";")}, lambda: $lambda")
+    println(s"lambdas: ${lambdas.mkString(";")})")
+    //val lambdaIndex = indexOfClosestLambda(lambdas, lambda)
     // handle the case where there is no match and lambdaIndex is -1
 
-    val subLambdas = lambdas.take(lambdaIndex + 1)
-    println(s"lambdaIndex: $lambdaIndex, subLambdas.length: ${subLambdas.length}")
+    //val subLambdas = lambdas.take(lambdaIndex + 1)
+    //println(s"lambdaIndex: $lambdaIndex, subLambdas.length: ${subLambdas.length}")
 
-    optimize(data, initialWeights, xy, subLambdas, alpha, lamShrnk, numIterations, numFeatures, numRows).last._2
+    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, numFeatures, numRows).last._2
   }
 
   private def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
@@ -248,38 +249,38 @@ object CoordinateDescent extends Logging {
   //    ???
   //  }
 
-  def main(args: Array[String]) {
-
-    val list = Array(10.0, 9.0, 8.0, 7.0, 6.0, 5.0)
-    //lambdas: 0.018850669313042794;0.0018850669313042797;1.88506693130428E-4, lambda: 0.014540099339240853
-
-    val list2 = Array(0.018850669313042794, 0.0018850669313042797, 1.88506693130428E-4)
-    assert(indexOfClosestLambda(list2, 0.014540099339240853) == 0)
-
-    assert(indexOfClosestLambda(list, 7.51) == 2)
-    assert(indexOfClosestLambda(list, 7.50) == 2)
-    assert(indexOfClosestLambda(list, 7.49) == 3)
-    assert(indexOfClosestLambda(list, 8.0) == 2)
-    assert(indexOfClosestLambda(list, 6.25) == 4)
-  }
-
-  // def indexOf(elem: A): Int
-  //Finds index of first occurrence of some value in this sequence.   
-  //TODO - revisit this implementation. F3 into scala impl of indexOf() and also look at scala cookbook
-  def indexOfClosestLambda(lambdas: Array[Double], lambda: Double): Int = {
-    @tailrec
-    def loop(n: Int, prevDiff: Double): Int = {
-      val currDiff = lambdas(n) - lambda
-      println(s"n: $n, prevDiff: $prevDiff < currDiff: $currDiff")
-      if (n == 0) { if (lambda < lambdas(0)) 0 else -1 }
-      //else if (abs(prevDiff) == abs(currDiff)) n 
-      else if (abs(prevDiff) < abs(currDiff)) n + 1
-      else loop(n - 1, currDiff)
-    }
-
-    val lastIndex = lambdas.length - 1
-    loop(lastIndex - 1, lambdas(lastIndex) - lambda)
-  }
+//  def main(args: Array[String]) {
+//
+//    val list = Array(10.0, 9.0, 8.0, 7.0, 6.0, 5.0)
+//    //lambdas: 0.018850669313042794;0.0018850669313042797;1.88506693130428E-4, lambda: 0.014540099339240853
+//
+//    val list2 = Array(0.018850669313042794, 0.0018850669313042797, 1.88506693130428E-4)
+//    assert(indexOfClosestLambda(list2, 0.014540099339240853) == 0)
+//
+//    assert(indexOfClosestLambda(list, 7.51) == 2)
+//    assert(indexOfClosestLambda(list, 7.50) == 2)
+//    assert(indexOfClosestLambda(list, 7.49) == 3)
+//    assert(indexOfClosestLambda(list, 8.0) == 2)
+//    assert(indexOfClosestLambda(list, 6.25) == 4)
+//  }
+//
+//  // def indexOf(elem: A): Int
+//  //Finds index of first occurrence of some value in this sequence.   
+//  //TODO - revisit this implementation. F3 into scala impl of indexOf() and also look at scala cookbook
+//  def indexOfClosestLambda(lambdas: Array[Double], lambda: Double): Int = {
+//    @tailrec
+//    def loop(n: Int, prevDiff: Double): Int = {
+//      val currDiff = lambdas(n) - lambda
+//      println(s"n: $n, prevDiff: $prevDiff < currDiff: $currDiff")
+//      if (n == 0) { if (lambda < lambdas(0)) 0 else -1 }
+//      //else if (abs(prevDiff) == abs(currDiff)) n 
+//      else if (abs(prevDiff) < abs(currDiff)) n + 1
+//      else loop(n - 1, currDiff)
+//    }
+//
+//    val lastIndex = lambdas.length - 1
+//    loop(lastIndex - 1, lambdas(lastIndex) - lambda)
+//  }
 
   def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
     //val (xy, lambdaInit) = initLambda(data, alpha, sw, numFeatures, numRows)
