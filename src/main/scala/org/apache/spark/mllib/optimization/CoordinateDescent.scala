@@ -154,7 +154,7 @@ object CoordinateDescent extends Logging {
 
   def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     //println(s"data1: ${data.collect.mkString("\n")}")
-    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, numRows): Array[Double]
+    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, numIterations, numRows): Array[Double]
     println(s"lambdas: ${lambdas.mkString(";")}")
     optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, numFeatures, numRows)
   }
@@ -163,7 +163,7 @@ object CoordinateDescent extends Logging {
     //println(s"alpha: $alpha")
     //println(s"data2: ${data.collect.mkString("\n")}")
     //println(s"data2: ${data}")
-    val lambdas = computeLambdas(xy, alpha, lamShrnk, lambdaIndex + 1, numRows): Array[Double]
+    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, lambdaIndex + 1, numRows): Array[Double]
 
     //println(s"lambdas: ${lambdas.mkString(";")}, lambda: $lambda")
     println(s"lambdas: ${lambdas.mkString(";")})")
@@ -305,17 +305,17 @@ object CoordinateDescent extends Logging {
 
   //def ?? : Nothing = throw new NotImplementedError
 
-  def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numRows: Long): Array[Double] = {
-    println(s"computeLambdas() xy: ${xy.mkString(",")}, alpha: $alpha, lamShrnk: $lamShrnk, numIterations: $numIterations, numRows: $numRows")
+  def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
+    println(s"computeLambdas() xy: ${xy.mkString(",")}, alpha: $alpha, lamShrnk: $lamShrnk, numIterations: $lambdaRange, numRows: $numRows")
 
     val maxXY = xy.map(abs).max(Ordering.Double)
     val lambdaInit = maxXY / alpha
 
-    val lambdaMult = exp(scala.math.log(lamShrnk) / numIterations)
+    val lambdaMult = exp(scala.math.log(lamShrnk) / lambdaRange)
 
     val lambdas = new MutableList[Double]
 
-    loop(lambdaInit, numIterations)
+    loop(lambdaInit, numLambdas)
 
     /*loop to decrement lambda and perform iteration for betas*/
     @tailrec

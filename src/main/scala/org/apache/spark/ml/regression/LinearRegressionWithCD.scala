@@ -308,6 +308,7 @@ class LinearRegressionWithCD(override val uid: String)
       }
       Vectors.dense(rawWeights).compressed
     }
+    logDebug(s"Weights ${weights.toArray.mkString(",")} with multiple sets of parameters.")
 
     /*
        The intercept in R's GLMNET is computed using closed form after the coefficients are
@@ -406,6 +407,7 @@ class LinearRegressionWithCD(override val uid: String)
       }
       Vectors.dense(rawWeights).compressed
     }
+    logDebug(s"Weights ${weights.toArray.mkString(",")} with multiple sets of parameters.")
 
     /*
        The intercept in R's GLMNET is computed using closed form after the coefficients are
