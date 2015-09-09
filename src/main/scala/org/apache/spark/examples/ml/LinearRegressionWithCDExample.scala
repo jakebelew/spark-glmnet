@@ -29,33 +29,18 @@ import org.apache.spark.ml.regression.LinearRegressionWithCD
 import org.apache.spark.ml.regression.LinearRegressionWithCDModel
 import org.apache.spark.mllib.util.MLUtils
 
-/**
- * A simple example demonstrating model selection using CrossValidator.
- * This example also demonstrates how Pipelines are Estimators.
- *
- * This example uses the [[LabeledDocument]] and [[Document]] case classes from
- * [[SimpleTextClassificationPipeline]].
- *
- * Run with
- * {{{
- * bin/run-example ml.CrossValidatorExample
- * }}}
- */
-//From spark/examples/src/main/scala/org/apache/spark/examples/ml/CrossValidatorExample.scala
-//http://spark.apache.org/docs/latest/ml-guide.html
 object LinearRegressionWithCDExample {
 
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("LinearRegressionWithCDExample").setMaster("local")
+    val conf = new SparkConf().setAppName("LinearRegressionWithCDExample")//.setMaster("local")
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
 
-    //val training = LinearDataGenerator.generateLinearRDD(sc, 10, 10, 10)
     val path = "data/sample_linear_regression_data.txt"
+    //val path = "data/sample_linear_regression_data_fold1.txt"
     //val path = "data/sample_linear_regression_data_fold2.txt"
     val training = MLUtils.loadLibSVMFile(sc, path)
-    //println(s"training: ${training.collect.mkString("\n")}")
 
     val lr = new LinearRegressionWithCD("")
       .setMaxIter(100)
@@ -64,23 +49,10 @@ object LinearRegressionWithCDExample {
       .addGrid(lr.elasticNetParam, Array(0.2))
 
     val paramGrid = paramGridBuilder.build.flatMap(pm => Array.fill(100)(pm.copy))
-    //println(s"paramGrid: ${paramGrid.mkString("\n")}")
 
     val models = lr.fit(training.toDF(), paramGrid)
-    //logResults(models)
 
     sc.stop()
-  }
-
-  def logResults(multiModel: Seq[LinearRegressionWithCDModel]) = {
-
-    //println(s"creating models ET: ${sw.elapsedTime / 1000} seconds")
-
-    // if (args.printBeta) {
-    println("Lambda & Beta for each model:")
-    // multiModel.foreach(item => println(s"\n\n${item._1} ${item._2.weights.toArray.mkString(",")}"))
-    multiModel.foreach(item => println(s"${item.weights.toArray.mkString(",")}"))
-    // }
   }
 }
 // scalastyle:on println
