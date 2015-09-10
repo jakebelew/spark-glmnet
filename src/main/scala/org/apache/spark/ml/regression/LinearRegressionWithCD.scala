@@ -67,21 +67,6 @@ private[ml] trait HasLambdaIndex extends Params {
 private[regression] trait LinearRegressionWithCDParams extends PredictorParams
   with HasRegParam with HasElasticNetParam with HasMaxIter with HasTol with HasLambdaIndex
 
-/**
- * :: Experimental ::
- * Linear regression.
- *
- * The learning objective is to minimize the squared error, with regularization.
- * The specific squared error loss function used is:
- *   L = 1/2n ||A weights - y||^2^
- *
- * This support multiple types of regularization:
- *  - none (a.k.a. ordinary least squares)
- *  - L2 (ridge regression)
- *  - L1 (Lasso)
- *  - L2 + L1 (elastic net)
- */
-@Experimental
 class LinearRegressionWithCD(override val uid: String)
   extends Regressor[Vector, LinearRegressionWithCD, LinearRegressionWithCDModel]
   with LinearRegressionWithCDParams with Logging {
@@ -143,19 +128,6 @@ class LinearRegressionWithCD(override val uid: String)
   def setTol(value: Double): this.type = set(tol, value)
   setDefault(tol -> 1E-6)
 
-  //  /**
-  //   * Fits a single model to the input data with provided parameter map.
-  //   *
-  //   * @param dataset input dataset
-  //   * @param paramMap Parameter map.
-  //   *                 These values override any specified in this Estimator's embedded ParamMap.
-  //   * @return fitted model
-  //   */
-  //  override def fit(dataset: DataFrame, paramMap: ParamMap): LinearRegressionWithCDModel = {
-  //    //TODO - need to get compute the lambdas on this dataset, then find the index of the closest match of the regParam provided in the given paramMap. Then drop the lambda list at that index and provide it to CD to compute and provide the model for that lambda. 
-  //    copy(paramMap).fit(dataset)
-  //  }
-
   /**
    * Fits multiple models to the input data with multiple sets of parameters.
    * The default implementation uses a for loop on each parameter map.
@@ -188,11 +160,11 @@ class LinearRegressionWithCD(override val uid: String)
     val featuresStd = scalerModel.std.toArray.drop(1)
     val initialWeights = Vectors.zeros(numFeatures)
 
-    val boundaryIndexes = new Range(0, paramMaps.length, 100)
-    val models = new MutableList[LinearRegressionWithCDModel]
-
     val xy = CoordinateDescent.computeXY(normalizedInstances, numFeatures, numRows)
     logDebug(s"xy: ${xy.mkString(",")}")
+
+    val boundaryIndexes = new Range(0, paramMaps.length, 100)
+    val models = new MutableList[LinearRegressionWithCDModel]
 
     boundaryIndexes.foreach(index => {
       //copy(paramMap).fit(dataset)    
@@ -212,7 +184,6 @@ class LinearRegressionWithCD(override val uid: String)
 
     models
   }
-
 
   private def normalizeDataSet(dataset: DataFrame): (RDD[(Double, Vector)], StandardScalerModel) = {
     val instances = extractLabeledPoints(dataset).map {
@@ -279,98 +250,39 @@ class LinearRegressionWithCD(override val uid: String)
     model
   }
 
-  // TODO - DRY this method and fit() method
-  // See org.apache.spark.ml.regression.LinearRegression for original code
   override protected def train(dataset: DataFrame): LinearRegressionWithCDModel = {
-    // Extract columns from data.  If dataset is persisted, do not persist instances.
-    val instances = extractLabeledPoints(dataset).map {
-      case LabeledPoint(label: Double, features: Vector) => (label, features)
-    }
+
+    val (normalizedInstances, scalerModel) = normalizeDataSet(dataset)
     val handlePersistence = dataset.rdd.getStorageLevel == StorageLevel.NONE
-    if (handlePersistence) instances.persist(StorageLevel.MEMORY_AND_DISK)
-
-    val numRows = instances.count
-
-    val labelsAndFeatures = instances.map { case (label, features) => Vectors.dense(label +: features.toArray) }
-
-    val scalerModel = new StandardScaler(withMean = true, withStd = true)
-      .fit(labelsAndFeatures)
-
-    val normalizedInstances = scalerModel
-      .transform(labelsAndFeatures)
-      .map(row => (row.toArray.take(1)(0), Vectors.dense(row.toArray.drop(1))))
-
+    if (handlePersistence) normalizedInstances.persist(StorageLevel.MEMORY_AND_DISK)
+    val numRows = normalizedInstances.count
     val numFeatures = scalerModel.mean.size - 1
-    val yMean = scalerModel.mean.toArray(0)
-    val yStd = scalerModel.std.toArray(0)
-    val featuresMean = scalerModel.mean.toArray.drop(1)
-    val featuresStd = scalerModel.std.toArray.drop(1)
 
     // If the yStd is zero, then the intercept is yMean with zero weights;
     // as a result, training is not needed.
+    val yMean = scalerModel.mean.toArray(0)
+    val yStd = scalerModel.std.toArray(0)
     if (yStd == 0.0) {
-      logWarning(s"The standard deviation of the label is zero, so the weights will be zeros " +
-        s"and the intercept will be the mean of the label; as a result, training is not needed.")
-      if (handlePersistence) instances.unpersist()
-      val weights = Vectors.sparse(numFeatures, Seq())
-      val intercept = yMean
-
-      val model = new LinearRegressionWithCDModel(uid, weights, intercept)
-      //      val trainingSummary = new LinearRegressionTrainingSummary(
-      //        model.transform(dataset),
-      //        $(predictionCol),
-      //        $(labelCol),
-      //        $(featuresCol),
-      //        Array(0D))
-      //return copyValues(model.setSummary(trainingSummary))
-      return copyValues(model)
+      if (handlePersistence) normalizedInstances.unpersist()
+      return createModelsWithInterceptAndWeightsOfZeros(dataset, yMean, numFeatures)(0)
     }
 
+    val featuresMean = scalerModel.mean.toArray.drop(1)
+    val featuresStd = scalerModel.std.toArray.drop(1)
     val initialWeights = Vectors.zeros(numFeatures)
-
-    val optimizer = new CoordinateDescent()
-      .setAlpha($(elasticNetParam))
 
     val xy = CoordinateDescent.computeXY(normalizedInstances, numFeatures, numRows)
     logDebug(s"xy: ${xy.mkString(",")}")
 
+    val optimizer = new CoordinateDescent()
+      .setAlpha($(elasticNetParam))
+
     logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
     val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), numFeatures, numRows).toArray
 
-    val weights = {
-      /*
-         The weights are trained in the scaled space; we're converting them back to
-         the original space.
-       */
-      //val rawWeights = Array.ofDim[Double](numFeatures)
-      var i = 0
-      val len = rawWeights.length
-      while (i < len) {
-        rawWeights(i) *= { if (featuresStd(i) != 0.0) yStd / featuresStd(i) else 0.0 }
-        i += 1
-      }
-      Vectors.dense(rawWeights).compressed
-    }
-    logDebug(s"Weights ${weights.toArray.mkString(",")} with multiple sets of parameters.")
+    if (handlePersistence) normalizedInstances.unpersist()
 
-    /*
-       The intercept in R's GLMNET is computed using closed form after the coefficients are
-       converged. See the following discussion for detail.
-       http://stats.stackexchange.com/questions/13617/how-is-the-intercept-computed-in-glmnet
-     */
-    //val intercept = if ($(fitIntercept)) yMean - dot(weights, Vectors.dense(featuresMean)) else 0.0
-    val intercept = yMean - dot(weights, Vectors.dense(featuresMean))
-
-    if (handlePersistence) instances.unpersist()
-
-    val model = copyValues(new LinearRegressionWithCDModel(uid, weights, intercept))
-    //    val trainingSummary = new LinearRegressionTrainingSummary(
-    //      model.transform(dataset),
-    //      $(predictionCol),
-    //      $(labelCol),
-    //      $(featuresCol),
-    //      objectiveHistory)
-    //    model.setSummary(trainingSummary)
+    val model = createModel(rawWeights, yMean, yStd, featuresMean, featuresStd)
     model
   }
 
