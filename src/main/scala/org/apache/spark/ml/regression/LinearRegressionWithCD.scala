@@ -139,50 +139,79 @@ class LinearRegressionWithCD(override val uid: String)
    * @return fitted models, matching the input parameter maps
    */
   override def fit(dataset: DataFrame, paramMaps: Array[ParamMap]): Seq[LinearRegressionWithCDModel] = {
-    // paramMaps.map(fit(dataset, _))
+    fit(dataset, fitMultiModel, paramMaps)
+  }
 
-    val (normalizedInstances, scalerModel) = normalizeDataSet(dataset)
-    val handlePersistence = dataset.rdd.getStorageLevel == StorageLevel.NONE
-    if (handlePersistence) normalizedInstances.persist(StorageLevel.MEMORY_AND_DISK)
-    val numRows = normalizedInstances.count
-    val numFeatures = scalerModel.mean.size - 1
+  override protected def train(dataset: DataFrame): LinearRegressionWithCDModel = {
+    fit(dataset, fitSingleModel)(0)
+  }
 
-    // If the yStd is zero, then the intercept is yMean with zero weights;
-    // as a result, training is not needed.
-    val yMean = scalerModel.mean.toArray(0)
-    val yStd = scalerModel.std.toArray(0)
-    if (yStd == 0.0) {
-      if (handlePersistence) normalizedInstances.unpersist()
-      return createModelsWithInterceptAndWeightsOfZeros(dataset, yMean, numFeatures)
-    }
-
-    val featuresMean = scalerModel.mean.toArray.drop(1)
-    val featuresStd = scalerModel.std.toArray.drop(1)
-    val initialWeights = Vectors.zeros(numFeatures)
-
-    val xy = CoordinateDescent.computeXY(normalizedInstances, numFeatures, numRows)
-    logDebug(s"xy: ${xy.mkString(",")}")
-
-    val boundaryIndexes = new Range(0, paramMaps.length, 100)
+  private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
+    val boundaryIndices = new Range(0, paramMaps.length, $(maxIter))
     val models = new MutableList[LinearRegressionWithCDModel]
 
-    boundaryIndexes.foreach(index => {
+    boundaryIndices.foreach(index => {
       //copy(paramMap).fit(dataset)    
       val alphaS = paramMaps(index).get(elasticNetParam).getOrElse(1.0)
       val optimizer = new CoordinateDescent()
         //.setAlpha($(elasticNetParam))
         .setAlpha(alphaS)
 
-      val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, numFeatures, numRows).unzip
+      val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows).unzip
       //rawWeights.foreach { rw => logDebug(s"Raw Weights ${rw.toArray.mkString(",")}") }
 
-      val subModels = rawWeights.map(rw => createModel(rw.toArray, yMean, yStd, featuresMean, featuresStd))
-      models ++= subModels
+      models ++= rawWeights.map(rw => createModel(rw.toArray, stats.yMean, stats.yStd, stats.featuresMean, stats.featuresStd))
     })
+
+    models
+  }
+
+  private val fitSingleModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
+    val optimizer = new CoordinateDescent()
+      .setAlpha($(elasticNetParam))
+
+    logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
+    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), stats.numFeatures, numRows).toArray
+    val model = createModel(rawWeights, stats.yMean, stats.yStd, stats.featuresMean, stats.featuresStd)
+    Seq(model)
+  }
+
+  // f: (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap])
+  private def fit(dataset: DataFrame, f: (RDD[(Double, Vector)], Vector, Array[Double], Long, Stats, Array[ParamMap]) => Seq[LinearRegressionWithCDModel], paramMaps: Array[ParamMap] = Array()): Seq[LinearRegressionWithCDModel] = {
+    // paramMaps.map(fit(dataset, _))
+
+    val (normalizedInstances, scalerModel) = normalizeDataSet(dataset)
+    val handlePersistence = dataset.rdd.getStorageLevel == StorageLevel.NONE
+    if (handlePersistence) normalizedInstances.persist(StorageLevel.MEMORY_AND_DISK)
+
+    val stats = Stats(scalerModel)
+
+    // If the yStd is zero, then the intercept is yMean with zero weights;
+    // as a result, training is not needed.
+    if (stats.yStd == 0.0) {
+      if (handlePersistence) normalizedInstances.unpersist()
+      return createModelsWithInterceptAndWeightsOfZeros(dataset, stats.yMean, stats.numFeatures)
+    }
+
+    val numRows = normalizedInstances.count
+    val initialWeights = Vectors.zeros(stats.numFeatures)
+
+    val xy = CoordinateDescent.computeXY(normalizedInstances, stats.numFeatures, numRows)
+    logDebug(s"xy: ${xy.mkString(",")}")
+
+    val models = f(normalizedInstances, initialWeights, xy, numRows, stats, paramMaps)
 
     if (handlePersistence) normalizedInstances.unpersist()
 
     models
+  }
+
+  case class Stats(scalerModel: StandardScalerModel) {
+    val numFeatures = scalerModel.mean.size - 1
+    val yMean = scalerModel.mean.toArray(0)
+    val yStd = scalerModel.std.toArray(0)
+    lazy val featuresMean = scalerModel.mean.toArray.drop(1)
+    lazy val featuresStd = scalerModel.std.toArray.drop(1)
   }
 
   private def normalizeDataSet(dataset: DataFrame): (RDD[(Double, Vector)], StandardScalerModel) = {
@@ -247,42 +276,6 @@ class LinearRegressionWithCD(override val uid: String)
     //      $(featuresCol),
     //      objectiveHistory)
     //    model.setSummary(trainingSummary)
-    model
-  }
-
-  override protected def train(dataset: DataFrame): LinearRegressionWithCDModel = {
-
-    val (normalizedInstances, scalerModel) = normalizeDataSet(dataset)
-    val handlePersistence = dataset.rdd.getStorageLevel == StorageLevel.NONE
-    if (handlePersistence) normalizedInstances.persist(StorageLevel.MEMORY_AND_DISK)
-    val numRows = normalizedInstances.count
-    val numFeatures = scalerModel.mean.size - 1
-
-    // If the yStd is zero, then the intercept is yMean with zero weights;
-    // as a result, training is not needed.
-    val yMean = scalerModel.mean.toArray(0)
-    val yStd = scalerModel.std.toArray(0)
-    if (yStd == 0.0) {
-      if (handlePersistence) normalizedInstances.unpersist()
-      return createModelsWithInterceptAndWeightsOfZeros(dataset, yMean, numFeatures)(0)
-    }
-
-    val featuresMean = scalerModel.mean.toArray.drop(1)
-    val featuresStd = scalerModel.std.toArray.drop(1)
-    val initialWeights = Vectors.zeros(numFeatures)
-
-    val xy = CoordinateDescent.computeXY(normalizedInstances, numFeatures, numRows)
-    logDebug(s"xy: ${xy.mkString(",")}")
-
-    val optimizer = new CoordinateDescent()
-      .setAlpha($(elasticNetParam))
-
-    logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
-    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), numFeatures, numRows).toArray
-
-    if (handlePersistence) normalizedInstances.unpersist()
-
-    val model = createModel(rawWeights, yMean, yStd, featuresMean, featuresStd)
     model
   }
 
