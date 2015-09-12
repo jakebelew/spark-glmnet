@@ -1,23 +1,23 @@
 # spark-glmnet
 
-## glmnet -  “Regularization Paths for Generalized Linear Models via Coordinate Descent"
+### glmnet -  “Regularization Paths for Generalized Linear Models via Coordinate Descent"
 
 The developers coded, in Scala, the algorithm  “Regularization Paths for Generalized Linear Models via Coordinate Descent” by Jerome Friedman, Trevor Hastie and Rob Tibshirani of Stanford University (http://web.stanford.edu/~hastie/Papers/glmnet.pdf).  The algorithm is typically referred to as “glmnet” - generalized linear model with elastic net regularization.  Elastic net is the combination of the ridge and lasso regularization methods.  This algorithm is generally faster than traditional methods such as linear regression and is particularly well suited for “fat” datasets (many more features than events).
 
-## Spark MLlib
+### Spark MLlib
 
 This code is fully integrated with Spark MLlib and is being submitted as an addition to MLlib.  It performs k-fold cross validation, picks the best (highest accuracy) alpha/lambda combination and returns a model based on these.
 
 Following is the process that glmnet executes:
-1. User sets up arrays of values:
-  1.1 An array of alpha values.
-  1.2 Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
-  1.3 Choose number of k-folds for cross validation.
-2. On each fold:
-  2.1 Generate a model on each combination of alpha and lambda using k-fold training data.
-  2.2 Test all models on k-fold test data and save accuracies.
-3. Average accuracies across the various folds of results, for each of the alpha/lambda combinations and choose the one combination with highest accuracy.
-4. Train on all of the data using the alpha/lambda combination from step 3 and produce the final (best) model. 
+ 1. User sets up arrays of values:
+   1.1 An array of alpha values.
+   1.2 Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
+   1.3 Choose number of k-folds for cross validation.
+ 2. On each fold:
+   2.1 Generate a model on each combination of alpha and lambda using k-fold training data.
+   2.2 Test all models on k-fold test data and save accuracies.
+ 3. Average accuracies across the various folds of results, for each of the alpha/lambda combinations and choose the one combination with highest accuracy.
+ 4. Train on all of the data using the alpha/lambda combination from step 3 and produce the final (best) model. 
 
 ## Developers
     Mike Bowles
