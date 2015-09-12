@@ -10,11 +10,11 @@ This project coded, in Scala, the algorithm  “Regularization Paths for General
     Ben Burford
 
 ## Build the code (instructions are for running in Eclipse)
-(Clone the repo)
-$ git clone git@github.com:jakebelew/spark-glmnet.git
-(create an Eclipse project)
-$ cd spark-glmnet
-(If this is your first time running SBT, you will be “downloading the internet” so be prepared to take a while.)
-$ sbt
-> eclipse with-source=true
-> exit
+ (Clone the repo)
+ $ git clone git@github.com:jakebelew/spark-glmnet.git
+ (create an Eclipse project)
+ $ cd spark-glmnet
+ (If this is your first time running SBT, you will be “downloading the internet” so be prepared to take a while.)
+ $ sbt
+ > eclipse with-source=true
+ > exit
