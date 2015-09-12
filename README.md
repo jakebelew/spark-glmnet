@@ -25,14 +25,15 @@ Following is the process that glmnet executes:
     Jake Belew
     Ben Burford
 
-### Build the code (instructions are for running in Eclipse)
+### Instructions for running in Eclipse
 	$ git clone git@github.com:jakebelew/spark-glmnet.git
-	(create an Eclipse project and import)
+	(Create an Eclipse project)
 	$ cd spark-glmnet
 	(Note: if this is your first time running SBT, you will be “downloading the internet” so it may take a while.)
 	$ sbt
 	> eclipse with-source=true
 	> exit
+	(In Eclipse now import project)
 
 ### Run with test data
 	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse.
