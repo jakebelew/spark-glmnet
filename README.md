@@ -20,7 +20,7 @@ This project coded, in Scala, the algorithm  “Regularization Paths for General
 	> exit
 
 ## Run with test data
-	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse in the standard manner.
+	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse.
 	* It will read in data/sample_linear_regression_data.txt and perform glmnet
-	* It will run the data in 2 folds with alpha = 0.2 and 0.3
+	* It will run the data in k=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
 	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire data set using the chosen alpha and lambda.
