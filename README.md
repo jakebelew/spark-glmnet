@@ -11,12 +11,12 @@ This code is fully integrated with Spark MLlib and is being submitted as an addi
 Following is the process that glmnet executes:
 
     1. User sets up arrays of values:
-       1.1 An array of alpha values.
-    * Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
-    * Choose number of k-folds for cross validation.
+      1.1 An array of alpha values.
+      1.2 Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
+      1.3 Choose number of k-folds for cross validation.
     2. On each fold:
-    * Using Coordinate Descent generate a model on each combination of alpha and lambda using k-fold training data.
-    * Test all models on k-fold test data and save accuracies.
+       2.1 Using Coordinate Descent generate a model on each combination of alpha and lambda using k-fold training data.
+       2.2 Test all models on k-fold test data and save accuracies.
     3. Average accuracies across the various folds of results, for each of the alpha/lambda combinations and choose the one combination with highest accuracy.
     4. Train on all of the data using the alpha/lambda combination from step 3 and produce the final (best) model. 
 
