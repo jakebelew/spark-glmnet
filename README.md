@@ -29,7 +29,7 @@ Following is the process that glmnet executes:
 	$ git clone git@github.com:jakebelew/spark-glmnet.git
 	(Create an Eclipse project)
 	$ cd spark-glmnet
-	(Note: if this is your first time running SBT, you will be “downloading the internet” so it may take a while.)
+	(Note: if this is your first time running SBT this may take a while.)
 	$ sbt
 	> eclipse with-source=true
 	> exit
