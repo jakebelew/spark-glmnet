@@ -11,7 +11,6 @@ This code is fully integrated with Spark MLlib and is being submitted as an addi
 Following is the process that glmnet executes:
 
     1. User sets up arrays of values:
-    
     * An array of alpha values.
     * Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
     * Choose number of k-folds for cross validation.
