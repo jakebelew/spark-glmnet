@@ -10,21 +10,21 @@ This code is fully integrated with Spark MLlib and is being submitted as an addi
 
 Following is the process that glmnet executes:
  1. User sets up arrays of values:
-   1.1 An array of alpha values.
-   1.2 Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
-   1.3 Choose number of k-folds for cross validation.
+    1.1 An array of alpha values.
+    1.2 Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
+    1.3 Choose number of k-folds for cross validation.
  2. On each fold:
-   2.1 Generate a model on each combination of alpha and lambda using k-fold training data.
-   2.2 Test all models on k-fold test data and save accuracies.
+    2.1 Using Coordinate Descent generate a model on each combination of alpha and lambda using k-fold training data.
+    2.2 Test all models on k-fold test data and save accuracies.
  3. Average accuracies across the various folds of results, for each of the alpha/lambda combinations and choose the one combination with highest accuracy.
  4. Train on all of the data using the alpha/lambda combination from step 3 and produce the final (best) model. 
 
-## Developers
+### Developers
     Mike Bowles
     Jake Belew
     Ben Burford
 
-## Build the code (instructions are for running in Eclipse)
+### Build the code (instructions are for running in Eclipse)
 	$ git clone git@github.com:jakebelew/spark-glmnet.git
 	(create an Eclipse project and import)
 	$ cd spark-glmnet
@@ -33,7 +33,7 @@ Following is the process that glmnet executes:
 	> eclipse with-source=true
 	> exit
 
-## Run with test data
+### Run with test data
 	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse.
 	* It will read in data/sample_linear_regression_data.txt and apply the glmnet algorithm.
 	* It will run the data in k=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
