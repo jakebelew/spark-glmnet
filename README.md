@@ -25,7 +25,7 @@ Following is the process that glmnet executes:
     Jake Belew
     Ben Burford
 
-### Instructions for running in Eclipse
+### Instructions for setting up the project in Eclipse
 	$ git clone git@github.com:jakebelew/spark-glmnet.git
 	(Create an Eclipse project)
 	$ cd spark-glmnet
@@ -35,8 +35,9 @@ Following is the process that glmnet executes:
 	> exit
 	(In Eclipse now import project)
 
-### Run with test data
+### Running the cross-validation example in Eclipse
 	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse.
-	* It will read in data/sample_linear_regression_data.txt and apply the glmnet algorithm.
+	* It will generate training data and apply the glmnet algorithm.
 	* It will run the data in K=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
-	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire data set using the chosen alpha and lambda.
+	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire training data set using the chosen alpha and lambda.
+	* It will generate test data and run the resulting model on the test data and display the accuracy of that model on the test data.
