@@ -6,18 +6,18 @@ The developers coded, in Scala, the algorithm  “Regularization Paths for Gener
 
 ### Spark MLlib
 
-This code is fully integrated with Spark MLlib and is being submitted as an addition to MLlib. It performs k-fold cross validation, picks the best (highest accuracy) alpha/lambda combination and returns a model based on these.
+This code is fully integrated with Spark MLlib and is being submitted as an addition to MLlib. It performs K-fold cross validation, picks the best (highest accuracy) alpha/lambda combination and returns a model based on these.
 
 Following is the process that glmnet executes:
 
     1. User sets up arrays of values:
       1.1 An array of alpha values.
       1.2 Number of lambda values - default is 100 (glmnet will automatically generate the series of lambda values).
-      1.3 Choose number of k-folds for cross validation.
+      1.3 Choose number of K-folds for cross validation.
     2. On each fold:
-       2.1 Using Coordinate Descent generate a model on each combination of alpha and lambda using k-fold training data.
-       2.2 Test all models on k-fold test data and save accuracies.
-    3. Average accuracies across the various folds of results, for each of the alpha/lambda combinations and choose the one combination with highest accuracy.
+       2.1 Using Coordinate Descent generate a model on each combination of alpha and lambda using K-fold training data.
+       2.2 Test all models on K-fold test data and save accuracies.
+    3. Average accuracies across the various folds of results, for each of the alpha/lambda combinations, and choose the one combination with highest accuracy.
     4. Train on all of the data using the alpha/lambda combination from step 3 and produce the final (best) model. 
 
 ### Developers
@@ -37,5 +37,5 @@ Following is the process that glmnet executes:
 ### Run with test data
 	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse.
 	* It will read in data/sample_linear_regression_data.txt and apply the glmnet algorithm.
-	* It will run the data in k=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
+	* It will run the data in K=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
 	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire data set using the chosen alpha and lambda.
