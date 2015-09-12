@@ -14,13 +14,13 @@ This project coded, in Scala, the algorithm  “Regularization Paths for General
 	$ git clone git@github.com:jakebelew/spark-glmnet.git
 	(create an Eclipse project)
 	$ cd spark-glmnet
-	(If this is your first time running SBT, you will be “downloading the internet” so be prepared to take a while.)
+	(If this is your first time running SBT, you will be “downloading the internet” so it may take a while.)
 	$ sbt
 	> eclipse with-source=true
 	> exit
 
 ## Run with test data
 	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse in the standard manner.
-	It will read in data/sample_linear_regression_data.txt and perform glmnet
-	It will run the data in 2 folds with alpha = 0.2 and 0.3
-	It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire data set using the chosen alpha and lambda.
+	* It will read in data/sample_linear_regression_data.txt and perform glmnet
+	* It will run the data in 2 folds with alpha = 0.2 and 0.3
+	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire data set using the chosen alpha and lambda.
