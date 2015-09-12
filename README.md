@@ -12,7 +12,7 @@ Following is the process that glmnet executes:
 
     1. User sets up arrays of values:
       1.1 An array of alpha values.
-      1.2 Number of lambda values - default is 100 (glmnet will automatically the series of lambda values).
+      1.2 Number of lambda values - default is 100 (glmnet will automatically generate the series of lambda values).
       1.3 Choose number of k-folds for cross validation.
     2. On each fold:
        2.1 Using Coordinate Descent generate a model on each combination of alpha and lambda using k-fold training data.
