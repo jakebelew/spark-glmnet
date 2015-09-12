@@ -7,7 +7,6 @@ The developers coded, in Scala, the algorithm  “Regularization Paths for Gener
 ### Spark MLlib
 
 This code is fully integrated with Spark MLlib and is being submitted as an addition to MLlib.  It performs k-fold cross validation, picks the best (highest accuracy) alpha/lambda combination and returns a model based on these.
-
 Following is the process that glmnet executes:
     1. User sets up arrays of values:
     * An array of alpha values.
