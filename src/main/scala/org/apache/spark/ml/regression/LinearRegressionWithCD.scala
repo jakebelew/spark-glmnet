@@ -31,7 +31,7 @@ import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.mllib.optimization.CoordinateDescent
+import org.apache.spark.mllib.optimization.{ CoordinateDescent => CoordinateDescent } // { CoordinateDescent2 => CoordinateDescent }
 import scala.collection.mutable.MutableList
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
