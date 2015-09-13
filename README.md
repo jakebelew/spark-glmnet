@@ -33,7 +33,9 @@ Following is the process that glmnet executes:
 	$ sbt
 	> eclipse with-source=true
 	> exit
-	(In Eclipse now import project)
+	(In Eclipse, import project)
+	(To enable using the glmnet project log4j file, in order to better display linear regression information)
+	Project -> Properties -> Java Build Path -> Source -> Add Folder -> src/main/resources (select, OK) -> OK
 
 ### Running the cross-validation example in Eclipse
 	Run org.apache.spark.examples.ml.LinearRegressionCrossValidatorExample in eclipse.
@@ -41,3 +43,7 @@ Following is the process that glmnet executes:
 	* It will run the data in K=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
 	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire training data set using the chosen alpha and lambda.
 	* It will generate test data and run the resulting model on the test data and display the accuracy of that model on the test data.
+
+### To pick up modifications to the glmnet project log4j file    
+	(If you modify the log4j file in order to control display logging of linear regression information)   
+	Project -> Clean   
