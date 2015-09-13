@@ -20,14 +20,9 @@ package org.apache.spark.examples.ml
 
 import org.apache.spark.{ SparkConf, SparkContext }
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.ml.regression.LinearRegression
-import org.apache.spark.annotation.Experimental
 import org.apache.spark.mllib.util.LinearDataGenerator
-import org.apache.spark.ml.tuning.{ CrossValidator, ParamGridBuilder }
-import org.apache.spark.ml.evaluation.RegressionEvaluator
+import org.apache.spark.ml.tuning.ParamGridBuilder
 import org.apache.spark.ml.regression.LinearRegressionWithCD
-import org.apache.spark.ml.regression.LinearRegressionWithCDModel
-import org.apache.spark.mllib.util.MLUtils
 
 object LinearRegressionWithCDExample {
 
@@ -37,10 +32,7 @@ object LinearRegressionWithCDExample {
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
 
-    val path = "data/sample_linear_regression_data.txt"
-    //val path = "data/sample_linear_regression_data_fold1.txt"
-    //val path = "data/sample_linear_regression_data_fold2.txt"
-    val training = MLUtils.loadLibSVMFile(sc, path)
+    val training = LinearDataGenerator.generateLinearRDD(sc, 790, 10, 0.1, 2, 6.2)
 
     val lr = new LinearRegressionWithCD("")
       .setMaxIter(100)
@@ -48,7 +40,7 @@ object LinearRegressionWithCDExample {
     val paramGridBuilder = new ParamGridBuilder()
       .addGrid(lr.elasticNetParam, Array(0.2))
 
-    val paramGrid = paramGridBuilder.build.flatMap(pm => Array.fill(100)(pm.copy))
+    val paramGrid = paramGridBuilder.build.flatMap(pm => Array.fill(lr.getMaxIter)(pm.copy))
 
     val models = lr.fit(training.toDF(), paramGrid)
 
