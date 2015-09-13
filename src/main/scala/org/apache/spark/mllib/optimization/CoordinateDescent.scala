@@ -18,7 +18,6 @@
 package org.apache.spark.mllib.optimization
 
 import java.lang.Math.abs
-import scala.Array.canBuildFrom
 import scala.annotation.tailrec
 import scala.collection.mutable.MutableList
 import scala.math.exp
@@ -28,8 +27,6 @@ import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{ Vector => BV }
-import nonsubmit.utils.StopWatch
-import nonsubmit.utils.Log.logRDD
 import nonsubmit.utils.Timer
 
 /**

@@ -17,32 +17,22 @@
 
 package org.apache.spark.ml.regression
 
-import scala.collection.mutable
-import breeze.linalg.{ DenseVector => BDV, norm => brzNorm }
-import breeze.optimize.{ CachedDiffFunction, DiffFunction, LBFGS => BreezeLBFGS, OWLQN => BreezeOWLQN }
 import org.apache.spark.mllib.feature.{ StandardScaler, StandardScalerModel }
-import org.apache.spark.{ Logging, SparkException }
+import org.apache.spark.Logging
 import org.apache.spark.annotation.Experimental
 import org.apache.spark.ml.PredictorParams
-import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
 import org.apache.spark.ml.param.shared._
 import org.apache.spark.ml.util.Identifiable
-import org.apache.spark.mllib.evaluation.RegressionMetrics
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.BLAS._
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
-import org.apache.spark.sql.functions.{ col, udf }
-import org.apache.spark.sql.types.StructField
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.util.StatCounter
 import org.apache.spark.mllib.optimization.CoordinateDescent
 import scala.collection.mutable.MutableList
-import org.apache.spark.ml.param.Params
-import org.apache.spark.ml.param.IntParam
-import org.apache.spark.ml.param.ParamValidators
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
 
@@ -160,7 +150,7 @@ class LinearRegressionWithCD(override val uid: String)
       val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows).unzip
       //rawWeights.foreach { rw => logDebug(s"Raw Weights ${rw.toArray.mkString(",")}") }
 
-      models ++= rawWeights.map(rw => createModel(rw.toArray, stats.yMean, stats.yStd, stats.featuresMean, stats.featuresStd))
+      models ++= rawWeights.map(rw => createModel(rw.toArray, stats))
     })
 
     models
@@ -172,7 +162,7 @@ class LinearRegressionWithCD(override val uid: String)
 
     logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
     val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), stats.numFeatures, numRows).toArray
-    val model = createModel(rawWeights, stats.yMean, stats.yStd, stats.featuresMean, stats.featuresStd)
+    val model = createModel(rawWeights, stats)
     Seq(model)
   }
 
@@ -247,18 +237,18 @@ class LinearRegressionWithCD(override val uid: String)
     Seq(copyValues(model))
   }
 
-  private def createModel(rawWeights: Array[Double], yMean: Double, yStd: Double, featuresMean: Array[Double], featuresStd: Array[Double]): LinearRegressionWithCDModel = {
+  private def createModel(rawWeights: Array[Double], stats: Stats): LinearRegressionWithCDModel = {
     /* The weights are trained in the scaled space; we're converting them back to the original space. */
     val weights = {
       var i = 0
       val len = rawWeights.length
       while (i < len) {
-        rawWeights(i) *= { if (featuresStd(i) != 0.0) yStd / featuresStd(i) else 0.0 }
+        rawWeights(i) *= { if (stats.featuresStd(i) != 0.0) stats.yStd / stats.featuresStd(i) else 0.0 }
         i += 1
       }
       Vectors.dense(rawWeights).compressed
     }
-    logDebug(s"Weights ${weights.toArray.mkString(",")} with multiple sets of parameters.")
+    logDebug(s"Weights ${weights.toArray.mkString(",")}")
 
     /*
        The intercept in R's GLMNET is computed using closed form after the coefficients are
@@ -266,7 +256,7 @@ class LinearRegressionWithCD(override val uid: String)
        http://stats.stackexchange.com/questions/13617/how-is-the-intercept-computed-in-glmnet
      */
     //val intercept = if ($(fitIntercept)) yMean - dot(weights, Vectors.dense(featuresMean)) else 0.0
-    val intercept = yMean - dot(weights, Vectors.dense(featuresMean))
+    val intercept = stats.yMean - dot(weights, Vectors.dense(stats.featuresMean))
 
     val model = copyValues(new LinearRegressionWithCDModel(uid, weights, intercept))
     //    val trainingSummary = new LinearRegressionTrainingSummary(
