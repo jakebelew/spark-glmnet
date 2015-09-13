@@ -27,7 +27,7 @@ import org.apache.spark.ml.regression.LinearRegressionWithCD
 object LinearRegressionWithCDExample {
 
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("LinearRegressionWithCDExample")//.setMaster("local")
+    val conf = new SparkConf().setAppName("LinearRegressionWithCDExample").setMaster("local")
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._

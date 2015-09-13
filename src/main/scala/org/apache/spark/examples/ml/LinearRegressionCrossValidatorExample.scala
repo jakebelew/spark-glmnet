@@ -36,7 +36,7 @@ import org.apache.spark.sql.DataFrame
 object LinearRegressionCrossValidatorExample extends Logging {
 
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("LinearRegressionCrossValidatorExample")//.setMaster("local")
+    val conf = new SparkConf().setAppName("LinearRegressionCrossValidatorExample").setMaster("local")
     val sc = new SparkContext(conf)
 
     // nexamples, nfeatures, eps, intercept, fracTest
