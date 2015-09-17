@@ -31,9 +31,10 @@ import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.mllib.optimization.CoordinateDescent
 import scala.collection.mutable.MutableList
 import org.apache.spark.mllib.optimization.CDOptimizer
+import org.apache.spark.mllib.optimization.CoordinateDescent
+import org.apache.spark.mllib.optimization.CoordinateDescent2
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
 
@@ -155,7 +156,7 @@ class LinearRegressionWithCD(override val uid: String)
   }
 
   private def newOptimizer =
-    if ($(optimizerVersion) == 2) new CoordinateDescent() else new CoordinateDescent()
+    if ($(optimizerVersion) == 2) new CoordinateDescent2() else new CoordinateDescent()
 
   private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
     val boundaryIndices = new Range(0, paramMaps.length, $(maxIter))
