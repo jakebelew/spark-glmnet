@@ -32,7 +32,7 @@ object Timer {
 
   def timers() =  timerMap.values
     
-  def main(args: Array[String]) {
+  //def main(args: Array[String]) {
     //        val startTime = System.currentTimeMillis()
     //        for {
     //          i <- 0 until 1000000
@@ -51,5 +51,5 @@ object Timer {
     //    Timer("test2").exitingTimedSection
     //    println(Timer("test1").totalTime)
     //    println(Timer("test2").totalTime)
-  }
+  //}
 }
