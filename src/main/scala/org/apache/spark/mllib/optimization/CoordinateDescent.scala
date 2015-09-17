@@ -33,8 +33,8 @@ import nonsubmit.utils.Timer
  * Class used to solve an optimization problem using Coordinate Descent.
  */
 //TODO - Faster version in the works
-class CoordinateDescent private[spark]
-  extends Logging {
+class CoordinateDescent private[spark] extends CDOptimizer
+  with Logging {
 
   private var alpha: Double = 1.0
   private var lamShrnk: Double = 0.001
@@ -85,6 +85,11 @@ class CoordinateDescent private[spark]
       numIterations,
       lambdaIndex,
       numFeatures, numRows)
+  }
+
+  //TODO - Temporary to allow testing multiple versions of CoordinateDescent with minimum code duplication - remove to Object method only later
+  def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
+    CoordinateDescent.computeXY(data, numFeatures, numRows)
   }
 }
 

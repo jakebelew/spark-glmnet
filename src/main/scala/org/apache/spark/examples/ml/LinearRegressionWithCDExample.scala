@@ -23,11 +23,26 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.mllib.util.LinearDataGenerator
 import org.apache.spark.ml.tuning.ParamGridBuilder
 import org.apache.spark.ml.regression.LinearRegressionWithCD
+import org.apache.spark.mllib.optimization.CoordinateDescent
 
 object LinearRegressionWithCDExample {
 
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("LinearRegressionWithCDExample").setMaster("local")
+    LinearRegressionWithCDRunner.run("LinearRegressionWithCDExample", 1, args)
+  }
+}
+
+object LinearRegressionWithCD2Example {
+
+  def main(args: Array[String]) {
+    LinearRegressionWithCDRunner.run("LinearRegressionWithCD2Example", 2, args)
+  }
+}
+
+private object LinearRegressionWithCDRunner {
+
+  def run(appName: String, optimizerVersion: Int, args: Array[String]) {
+    val conf = new SparkConf().setAppName(appName).setMaster("local")
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
@@ -35,6 +50,7 @@ object LinearRegressionWithCDExample {
     val training = LinearDataGenerator.generateLinearRDD(sc, 790, 10, 0.1, 2, 6.2)
 
     val lr = new LinearRegressionWithCD("")
+      .setOptimizerVersion(optimizerVersion)
       .setMaxIter(100)
 
     val paramGridBuilder = new ParamGridBuilder()

@@ -31,8 +31,9 @@ import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.mllib.optimization.{ CoordinateDescent => CoordinateDescent } // { CoordinateDescent2 => CoordinateDescent }
+import org.apache.spark.mllib.optimization.CoordinateDescent
 import scala.collection.mutable.MutableList
+import org.apache.spark.mllib.optimization.CDOptimizer
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
 
@@ -51,11 +52,24 @@ private[ml] trait HasLambdaIndex extends Params {
   final def getLambdaIndex: Int = $(lambdaIndex)
 }
 
+//TODO - Temporary param to allow testing multiple versions of CoordinateDescent with minimum code duplication
+private[ml] trait HasOptimizerVersion extends Params {
+
+  /**
+   * Param for optimizerVersion (>= 0).
+   * @group param
+   */
+  final val optimizerVersion: IntParam = new IntParam(this, "optimizerVersion", "optimizerVersion (>= 0)", ParamValidators.gtEq(0))
+
+  /** @group getParam */
+  final def getOptimizerVersion: Int = $(optimizerVersion)
+}
+
 /**
  * Params for linear regression.
  */
 private[regression] trait LinearRegressionWithCDParams extends PredictorParams
-  with HasRegParam with HasElasticNetParam with HasMaxIter with HasTol with HasLambdaIndex
+  with HasRegParam with HasElasticNetParam with HasMaxIter with HasTol with HasLambdaIndex with HasOptimizerVersion
 
 class LinearRegressionWithCD(override val uid: String)
   extends Regressor[Vector, LinearRegressionWithCD, LinearRegressionWithCDModel]
@@ -109,6 +123,10 @@ class LinearRegressionWithCD(override val uid: String)
   def setMaxIter(value: Int): this.type = set(maxIter, value)
   setDefault(maxIter -> 100)
 
+  //TODO - Temporary param to allow testing multiple versions of CoordinateDescent with minimum code duplication
+  def setOptimizerVersion(value: Int): this.type = set(optimizerVersion, value)
+  setDefault(optimizerVersion -> 1)
+
   /**
    * Set the convergence tolerance of iterations.
    * Smaller value will lead to higher accuracy with the cost of more iterations.
@@ -136,6 +154,9 @@ class LinearRegressionWithCD(override val uid: String)
     fit(dataset, fitSingleModel)(0)
   }
 
+  private def newOptimizer =
+    if ($(optimizerVersion) == 2) new CoordinateDescent() else new CoordinateDescent()
+
   private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
     val boundaryIndices = new Range(0, paramMaps.length, $(maxIter))
     val models = new MutableList[LinearRegressionWithCDModel]
@@ -143,7 +164,7 @@ class LinearRegressionWithCD(override val uid: String)
     boundaryIndices.foreach(index => {
       //copy(paramMap).fit(dataset)    
       val alphaS = paramMaps(index).get(elasticNetParam).getOrElse(1.0)
-      val optimizer = new CoordinateDescent()
+      val optimizer = newOptimizer
         //.setAlpha($(elasticNetParam))
         .setAlpha(alphaS)
 
@@ -157,7 +178,7 @@ class LinearRegressionWithCD(override val uid: String)
   }
 
   private val fitSingleModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
-    val optimizer = new CoordinateDescent()
+    val optimizer = newOptimizer
       .setAlpha($(elasticNetParam))
 
     logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
@@ -186,7 +207,7 @@ class LinearRegressionWithCD(override val uid: String)
     val numRows = normalizedInstances.count
     val initialWeights = Vectors.zeros(stats.numFeatures)
 
-    val xy = CoordinateDescent.computeXY(normalizedInstances, stats.numFeatures, numRows)
+    val xy = newOptimizer.computeXY(normalizedInstances, stats.numFeatures, numRows)
     logDebug(s"xy: ${xy.mkString(",")}")
 
     val models = f(normalizedInstances, initialWeights, xy, numRows, stats, paramMaps)
