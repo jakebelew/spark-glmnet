@@ -1,19 +1,7 @@
 //package edu.berkeley.cs.amplab.mlmatrix
 package org.apache.spark.mllib.linalg.mlmatrix
 
-//import java.util.concurrent.ThreadLocalRandom
-//import scala.reflect.ClassTag
-//import breeze.linalg._
-//import com.github.fommil.netlib.LAPACK.{ getInstance => lapack }
-//import org.netlib.util.intW
-//import org.netlib.util.doubleW
-//import org.apache.spark.{ SparkContext, SparkException }
-import org.apache.spark.rdd.RDD
-//import org.apache.spark.sql.SQLContext
-//import org.apache.spark.sql.{ DataFrame, Row }
-//import org.apache.spark.sql.types._
-//import org.apache.spark.Logging
-import breeze.linalg._
+import org.apache.spark.mllib.linalg.DenseMatrix
 import org.apache.spark.rdd.RDD
 //import org.apache.spark.mllib.regression.LabeledPoint
 
@@ -28,9 +16,9 @@ import org.apache.spark.rdd.RDD
 object ToBeNamed {
 
   //TODO - Implement me. Probably want to make a function that allows arbitrary conversions.
-  //def labeledPointsToMatrix(rdd: RDD[LabeledPoint]): RDD[(DenseVector[Double], DenseMatrix[Double])] = ???
+  //def labeledPointsToMatrix(rdd: RDD[LabeledPoint]): RDD[(DenseVector, DenseMatrix)] = ???
 
-  def arrayToMatrix(matrixRDD: RDD[Array[Double]]): RDD[DenseMatrix[Double]] = {
+  def arrayToMatrix(matrixRDD: RDD[Array[Double]]): RDD[DenseMatrix] = {
     val rowsColsPerPartition = matrixRDD.mapPartitionsWithIndex {
       case (part, iter) =>
         if (iter.hasNext) {
@@ -57,7 +45,7 @@ object ToBeNamed {
           }
           nRow += 1
         }
-        Iterator(new DenseMatrix[Double](rows, cols, matData.toArray))
+        Iterator(new DenseMatrix(rows, cols, matData.toArray))
     }
     data
   }
