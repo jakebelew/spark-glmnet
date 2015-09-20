@@ -5,7 +5,7 @@ import scala.Array.canBuildFrom
 import scala.collection.JavaConversions.seqAsJavaList
 import scala.collection.mutable.MutableList
 import scala.util.Sorting
-import org.apache.spark.mllib.linalg.DenseMatrix
+import org.apache.spark.mllib.linalg.Matrix
 
 /** SparseMatrix optimized for Coordinate Descent algorithm. */
 protected case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Array[Int]) {
@@ -18,12 +18,12 @@ protected case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Ar
   private var empty = true
 
   // newXX is JxK
-  def update(newActiveIndices: Array[Int], newXX: DenseMatrix) = {
+  def update(newActiveIndices: Array[Int], newXX: Matrix) = {
     if (empty) initialUpdate(newActiveIndices, newXX)
     else regularUpdate(newActiveIndices, newXX)
   }
 
-  private def initialUpdate(newActiveIndices: Array[Int], newXX: DenseMatrix) = {
+  private def initialUpdate(newActiveIndices: Array[Int], newXX: Matrix) = {
     empty = false
     val numIndices = newActiveIndices.size
     var j = 0
@@ -33,7 +33,7 @@ protected case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Ar
     }
   }
 
-  private def getValues(numIndices: Int, j: Int, newXX: DenseMatrix): Array[Double] = {
+  private def getValues(numIndices: Int, j: Int, newXX: Matrix): Array[Double] = {
     val values = Array.ofDim[Double](numIndices)
     val numK = newXX.numCols
     var k = 0
@@ -44,7 +44,7 @@ protected case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Ar
     values
   }
 
-  private def regularUpdate(newActiveIndices: Array[Int], newXX: DenseMatrix) = {
+  private def regularUpdate(newActiveIndices: Array[Int], newXX: Matrix) = {
     val xxIndices = xx(0).index
 
     val (newXXIndices, xxTranslation, newXXTranslation) = computeTranslationIndices(xxIndices, newActiveIndices)
@@ -57,7 +57,7 @@ protected case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Ar
     }
   }
 
-  private def combineValues(numIndices: Int, j: Int, xxTranslation: Array[Int], newXX: DenseMatrix, newXXTranslation: Array[Int]): Array[Double] = {
+  private def combineValues(numIndices: Int, j: Int, xxTranslation: Array[Int], newXX: Matrix, newXXTranslation: Array[Int]): Array[Double] = {
     val values = Array.ofDim[Double](numIndices)
 
     val xxjData = xx(j).data

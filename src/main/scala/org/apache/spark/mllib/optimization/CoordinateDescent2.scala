@@ -29,11 +29,8 @@ import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{ Vector => BV }
 import nonsubmit.utils.Timer
 import org.apache.spark.mllib.linalg.mlmatrix.ToBeNamed
-import org.apache.spark.mllib.linalg.DenseMatrix
-import org.apache.spark.mllib.linalg.BLAS
-import org.apache.spark.mllib.linalg.Matrices
-import breeze.linalg.{ DenseMatrix => BDM }
-import org.apache.spark.mllib.optimization.BreezeUtil.{ toBreeze, fromBreeze }
+import org.apache.spark.mllib.linalg.{ Matrices, Matrix, DenseMatrix }
+//import org.apache.spark.mllib.linalg.BLAS
 
 /**
  * Class used to solve an optimization problem using Coordinate Descent.
@@ -206,15 +203,14 @@ object CoordinateDescent2 extends Logging {
     Timer("xx.update").end
   }
 
-  def xCorrelation(data: RDD[DenseMatrix], newColIndexes: Array[Int], numFeatures: Int, numRows: Long): DenseMatrix = {
+  def xCorrelation(data: RDD[DenseMatrix], newColIndexes: Array[Int], numFeatures: Int, numRows: Long): Matrix = {
     val numNewBeta = newColIndexes.size
 
     val xx = data.treeAggregate(new XCorrelation2(newColIndexes, numFeatures))(
       (aggregate, row) => aggregate.compute(row),
       (aggregate1, aggregate2) => aggregate1.combine(aggregate2)).xx
 
-    //xx.map { _.map(_ / numRows) }
-    fromBreeze(toBreeze(xx) :/= (numRows.toDouble))
+    Matrices.fromBreeze(xx.toBreeze :/= (numRows.toDouble))
   }
 
   def S(z: Double, gamma: Double): Double = if (gamma >= abs(z)) 0.0 else (z / abs(z)) * (abs(z) - gamma)
@@ -291,28 +287,11 @@ private class InitLambda2(numFeatures: Int) extends Serializable {
   }
 }
 
-private[optimization] object BreezeUtil {
-  def toBreeze(dm: DenseMatrix): BDM[Double] = {
-    if (!dm.isTransposed) {
-      new BDM[Double](dm.numRows, dm.numCols, dm.values)
-    } else {
-      val breezeMatrix = new BDM[Double](dm.numCols, dm.numRows, dm.values)
-      breezeMatrix.t
-    }
-  }
-
-  def fromBreeze(dm: BDM[Double]): DenseMatrix = {
-    new DenseMatrix(dm.rows, dm.cols, dm.data, dm.isTranspose)
-  }
-}
-
 private class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
 
-  //var xx: Option[DenseMatrix] = None
   var xx: DenseMatrix = _
 
   def compute(row: DenseMatrix): this.type = {
-    //assert(xx == None, "More than one matrix per partition")
     assert(xx == null, "More than one matrix per partition")
     xx = computeJxK(row, newColIndexes)
     this
@@ -321,9 +300,7 @@ private class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends
   def combine(other: XCorrelation2): this.type = {
     assert(xx != null, "Partition does not contain a matrix")
     assert(other.xx != null, "Other Partition does not contain a matrix")
-    val dm = xx.toBreeze :+= other.xx.toBreeze 
-    xx = fromBreeze(toBreeze(xx) :+= toBreeze(other.xx))
-    //xx :+= other.xx
+    xx.toBreeze :+= other.xx.toBreeze
     this
   }
 
