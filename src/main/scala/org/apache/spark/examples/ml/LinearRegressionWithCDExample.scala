@@ -24,6 +24,8 @@ import org.apache.spark.mllib.util.LinearDataGenerator
 import org.apache.spark.ml.tuning.ParamGridBuilder
 import org.apache.spark.ml.regression.LinearRegressionWithCD
 import org.apache.spark.mllib.optimization.CoordinateDescent
+import org.apache.spark.Logging
+import nonsubmit.utils.Timer
 
 object LinearRegressionWithCDExample {
 
@@ -39,7 +41,7 @@ object LinearRegressionWithCD2Example {
   }
 }
 
-private object LinearRegressionWithCDRunner {
+private object LinearRegressionWithCDRunner extends Logging {
 
   def run(appName: String, optimizerVersion: Int, args: Array[String]) {
     val conf = new SparkConf().setAppName(appName).setMaster("local")
@@ -60,6 +62,8 @@ private object LinearRegressionWithCDRunner {
 
     val models = lr.fit(training.toDF(), paramGrid)
 
+    logDebug(s"${Timer.timers.mkString("\n")}")
+    
     sc.stop()
   }
 }
