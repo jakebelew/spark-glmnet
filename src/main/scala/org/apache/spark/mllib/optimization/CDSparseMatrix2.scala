@@ -8,7 +8,7 @@ import scala.util.Sorting
 import org.apache.spark.mllib.linalg.Matrix
 
 /** SparseMatrix optimized for Coordinate Descent algorithm. */
-protected case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Array[Int]) {
+private[optimization] case class CDSparseMatrix2(numFeatures: Int, startingActiveIndices: Array[Int]) {
 
   type Vector = breeze.linalg.Vector[Double]
   type SparseVector = breeze.linalg.SparseVector[Double]

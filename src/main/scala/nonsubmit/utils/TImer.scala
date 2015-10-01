@@ -18,6 +18,10 @@ class Timer(name: String) {
     totalTime += System.currentTimeMillis - startTime
   }
   
+  def reset() = {
+    totalTime = 0L
+  }
+  
   //TODO - Make the time units selectable and round not truncate
   override def toString() = s"$name totalTime: ${totalTime/1000} seconds"
 }

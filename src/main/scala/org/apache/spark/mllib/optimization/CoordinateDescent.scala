@@ -275,7 +275,8 @@ private class InitLambda(numFeatures: Int) extends Serializable {
   }
 }
 
-private class XCorrelation(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
+//private class XCorrelation(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
+class XCorrelation(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
 
   private val numNewBeta = newColIndexes.size
 

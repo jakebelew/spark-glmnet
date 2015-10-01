@@ -287,7 +287,8 @@ private class InitLambda2(numFeatures: Int) extends Serializable {
   }
 }
 
-private class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
+//private class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
+class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends Serializable {
 
   var xx: DenseMatrix = _
 
@@ -305,19 +306,21 @@ private class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends
   }
 
   //TODO - Test which way is the fastest in the entire CD process (computeJxK or computeKxJ)
-  private def computeJxK(m: DenseMatrix, newColIndexes: Array[Int]): DenseMatrix = {
+  //private
+   def computeJxK(m: DenseMatrix, newColIndexes: Array[Int]): DenseMatrix = {
     val xk = sliceMatrixByColumns(m, newColIndexes)
     gemm(m.transpose, xk)
   }
 
-  private def computeKxJ(m: DenseMatrix, newColIndexes: Array[Int]): DenseMatrix = {
+   //private
+   def computeKxJ(m: DenseMatrix, newColIndexes: Array[Int]): DenseMatrix = {
     val xk = sliceMatrixByColumns(m, newColIndexes)
     gemm(xk.transpose, m)
   }
 
   //TODO - does breeze have this functionality?
   private def sliceMatrixByColumns(m: DenseMatrix, sliceIndices: Array[Int]): DenseMatrix = {
-    val startTime = System.currentTimeMillis()
+    //val startTime = System.currentTimeMillis()
     val nIndices = sliceIndices.length
     val nRows = m.numRows
     val slice = Array.ofDim[Double](nRows * nIndices)
@@ -327,7 +330,8 @@ private class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends
       i += 1
     }
     val sm = new DenseMatrix(nRows, sliceIndices.length, slice)
-    println(s"sliceMatrixByColumns time: ${(System.currentTimeMillis() - startTime) / 1000} seconds")
+    //TODO - add Timer instead
+    //println(s"sliceMatrixByColumns time: ${(System.currentTimeMillis() - startTime) / 1000} seconds")
     sm
   }
 

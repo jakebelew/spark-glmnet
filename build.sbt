@@ -6,6 +6,8 @@ scalaVersion := "2.10.4"
 
 javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
 
+javaOptions in (Test,run) += "-Xmx2G"
+
 // Must run the examples and tests in separate JVMs to avoid mysterious
 // scala.reflect.internal.MissingRequirementError errors.
 // https://github.com/deanwampler/spark-workshop/blob/master/project/Build.scala
