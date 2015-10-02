@@ -35,7 +35,7 @@ import org.apache.spark.mllib.linalg.{Vectors, Vector}
  * to have time complexity O(nnz) instead of O(n) for each column.
  */
 @DeveloperApi
-class MultivariateOnlineSummarizer extends MultivariateStatisticalSummary with Serializable {
+class MultivariateOnlineSummarizer_Modified extends MultivariateStatisticalSummary with Serializable {
 
   protected[stat] var n = 0
   protected[stat] var currMean: Array[Double] = _
@@ -108,7 +108,7 @@ class MultivariateOnlineSummarizer extends MultivariateStatisticalSummary with S
    * @param other The other MultivariateOnlineSummarizer to be merged.
    * @return This MultivariateOnlineSummarizer object.
    */
-  def merge(other: MultivariateOnlineSummarizer): this.type = {
+  def merge(other: MultivariateOnlineSummarizer_Modified): this.type = {
     if (this.totalCnt != 0 && other.totalCnt != 0) {
       require(n == other.n, s"Dimensions mismatch when merging with another summarizer. " +
         s"Expecting $n but got ${other.n}.")

@@ -2,7 +2,7 @@ package org.apache.spark.mllib.stat
 
 import org.apache.spark.mllib.linalg.Matrix
 
-class MatrixMultivariateOnlineSummarizer extends MultivariateOnlineSummarizer {
+class MatrixMultivariateOnlineSummarizer extends MultivariateOnlineSummarizer_Modified {
 
   /**
    * Add a new sample to this summarizer, and update the statistical summary.
