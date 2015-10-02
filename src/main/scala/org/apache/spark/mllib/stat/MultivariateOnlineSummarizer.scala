@@ -37,15 +37,15 @@ import org.apache.spark.mllib.linalg.{Vectors, Vector}
 @DeveloperApi
 class MultivariateOnlineSummarizer extends MultivariateStatisticalSummary with Serializable {
 
-  private var n = 0
-  private var currMean: Array[Double] = _
-  private var currM2n: Array[Double] = _
-  private var currM2: Array[Double] = _
-  private var currL1: Array[Double] = _
-  private var totalCnt: Long = 0
-  private var nnz: Array[Double] = _
-  private var currMax: Array[Double] = _
-  private var currMin: Array[Double] = _
+  protected[stat] var n = 0
+  protected[stat] var currMean: Array[Double] = _
+  protected[stat] var currM2n: Array[Double] = _
+  protected[stat] var currM2: Array[Double] = _
+  protected[stat] var currL1: Array[Double] = _
+  protected[stat] var totalCnt: Long = 0
+  protected[stat] var nnz: Array[Double] = _
+  protected[stat] var currMax: Array[Double] = _
+  protected[stat] var currMin: Array[Double] = _
 
   /**
    * Add a new sample to this summarizer, and update the statistical summary.
