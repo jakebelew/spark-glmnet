@@ -8,13 +8,14 @@ import org.apache.spark.Logging
 
 // Adapted from https://github.com/amplab/ml-matrix/blob/master/src/main/scala/edu/berkeley/cs/amplab/mlmatrix/RowPartitionedMatrix.scala
 //TODO - Investigate usage as a org.apache.spark.ml.Transformer
+//TODO - Can the org.apache.spark.mllib.linalg.distributed.BlockMatrix be used instead of this?
 
 /** Note: [[breeze.linalg.DenseMatrix]] by default uses column-major layout. */
 /**
  * Transforms RDD's into a single row per partition, allowing higher level BLAS operations to operate on the RDD contents.
  *  For example, Doubles can be converted to a DenseVector and Array[Double]s or DenseVectors can be converted to a DenseMatrix.
  */
-object ToBeNamed extends Logging {
+object RowPartionedTransformer extends Logging {
 
   def labeledPointsToMatrix(dataset: DataFrame): RDD[(DenseVector, DenseMatrix)] = {
     val rowRDD = dataset.select("label", "features").map {
