@@ -27,7 +27,6 @@ import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.BLAS._
 import org.apache.spark.mllib.regression.LabeledPoint
-import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
 import org.apache.spark.storage.StorageLevel
@@ -77,6 +76,9 @@ class LinearRegressionWithCD(override val uid: String)
   with LinearRegressionWithCDParams with Logging {
 
   def this() = this(Identifiable.randomUID("linReg"))
+
+  def setLambdaIndex(value: Int): this.type = set(lambdaIndex, value)
+  setDefault(lambdaIndex -> 99)
 
   /**
    * Set the regularization parameter.
@@ -197,6 +199,7 @@ class LinearRegressionWithCD(override val uid: String)
     if (handlePersistence) normalizedInstances.persist(StorageLevel.MEMORY_AND_DISK)
 
     val stats = Stats(scalerModel)
+    //logDebug(s"stats:\nnumFeatures: ${stats.numFeatures}\nyMean: ${stats.yMean}\nStd: ${stats.yStd}\nfeaturesMean: ${stats.featuresMean.mkString(",")}\nfeaturesStd: ${stats.featuresStd.mkString(",")}")
 
     // If the yStd is zero, then the intercept is yMean with zero weights;
     // as a result, training is not needed.
@@ -270,7 +273,7 @@ class LinearRegressionWithCD(override val uid: String)
       }
       Vectors.dense(rawWeights).compressed
     }
-    logDebug(s"Weights ${weights.toArray.mkString(",")}")
+    //logDebug(s"Weights ${weights.toArray.mkString(",")}")
 
     /*
        The intercept in R's GLMNET is computed using closed form after the coefficients are

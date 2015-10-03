@@ -44,7 +44,7 @@ object LinearRegressionWithCD2Example {
 private object LinearRegressionWithCDRunner extends Logging {
 
   def run(appName: String, optimizerVersion: Int, args: Array[String]) {
-    val conf = new SparkConf().setAppName(appName).setMaster("local")
+    val conf = new SparkConf().setAppName(appName).setMaster("local[2]")
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
     import sqlContext.implicits._
@@ -54,6 +54,7 @@ private object LinearRegressionWithCDRunner extends Logging {
     val lr = new LinearRegressionWithCD("")
       .setOptimizerVersion(optimizerVersion)
       .setMaxIter(100)
+    //.setElasticNetParam(0.2)
 
     val paramGridBuilder = new ParamGridBuilder()
       .addGrid(lr.elasticNetParam, Array(0.2))
@@ -62,8 +63,10 @@ private object LinearRegressionWithCDRunner extends Logging {
 
     val models = lr.fit(training.toDF(), paramGrid)
 
+    //val model = lr.fit(training.toDF())
+
     logDebug(s"${Timer.timers.mkString("\n")}")
-    
+
     sc.stop()
   }
 }
