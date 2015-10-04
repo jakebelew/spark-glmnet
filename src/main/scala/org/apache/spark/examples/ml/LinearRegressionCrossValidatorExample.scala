@@ -62,7 +62,9 @@ object LinearRegressionCrossValidatorExample extends Logging {
 
     // Make predictions on test data. cvModel uses the best model found (lrModel).
     val predictions = cvModel.transform(test)
-    logInfo(s"Evaluation metric (RMSE): ${new RegressionEvaluator().evaluate(predictions)}")
+    //"mse", "rmse", "r2", "mae"
+    logInfo(s"Test MSE: ${new RegressionEvaluator().setMetricName("mse").evaluate(predictions)}")
+    logInfo(s"Test R2: ${new RegressionEvaluator().setMetricName("r2").evaluate(predictions)}")
     //logPredictions(predictions)
 
     logDebug(s"${Timer.timers.mkString("\n")}")
