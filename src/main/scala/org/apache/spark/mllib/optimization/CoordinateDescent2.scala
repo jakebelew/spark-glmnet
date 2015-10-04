@@ -28,7 +28,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{ Vector => BV }
 import nonsubmit.utils.Timer
-import org.apache.spark.mllib.linalg.mlmatrix.ToBeNamed
+import org.apache.spark.mllib.linalg.mlmatrix.RowPartionedTransformer
 import org.apache.spark.mllib.linalg.{ Matrices, Matrix, DenseMatrix }
 //import org.apache.spark.mllib.linalg.BLAS
 
@@ -116,7 +116,7 @@ object CoordinateDescent2 extends Logging {
 
   //TODO - Persistence needs to done from the LR for optimum
   private def convertToMatrix(data: RDD[(Double, Vector)]): RDD[DenseMatrix] = {
-    val matrixRDD = ToBeNamed.arrayToMatrix(data.map(row => row._2.toArray))
+    val matrixRDD = RowPartionedTransformer.arrayToMatrix(data.map(row => row._2.toArray))
       .persist(StorageLevel.MEMORY_AND_DISK)
     logDebug(s"convertToMatrix() data: RDD[(Double, Vector)]: ${data.toDebugString}, matrixRDD: RDD[DenseMatrix]: ${matrixRDD.toDebugString}")
     matrixRDD
