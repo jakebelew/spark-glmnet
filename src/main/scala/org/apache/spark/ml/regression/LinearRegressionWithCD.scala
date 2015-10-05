@@ -293,6 +293,10 @@ class LinearRegressionWithCDModel private[ml] (
   extends RegressionModel[Vector, LinearRegressionWithCDModel]
   with LinearRegressionParams {
 
+  /** The order of weights - from largest to smallest. Returns the indexes of the weights in descending order of the absolute value. */
+  def orderOfWeights(): Array[Int] =
+    weights.toArray.map(math.abs).zipWithIndex.sortBy(-_._1).map(_._2).toArray
+
   override protected def predict(features: Vector): Double = {
     dot(features, weights) + intercept
   }
@@ -301,3 +305,8 @@ class LinearRegressionWithCDModel private[ml] (
     copyValues(new LinearRegressionWithCDModel(uid, weights, intercept), extra)
   }
 }
+
+object ModelLogger extends Logging {
+  override def logInfo(msg: => String) = { super.logInfo(msg) }
+}
+
