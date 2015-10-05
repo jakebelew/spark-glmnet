@@ -1,4 +1,4 @@
-name := "spark-glmnet6"
+name := "spark-glmnet"
 
 version := "1.5"
 
