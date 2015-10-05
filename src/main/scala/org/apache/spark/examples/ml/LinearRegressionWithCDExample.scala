@@ -34,12 +34,12 @@ object LinearRegressionWithCDExample {
   }
 }
 
-object LinearRegressionWithCD2Example {
-
-  def main(args: Array[String]) {
-    LinearRegressionWithCDRunner.run("LinearRegressionWithCD2Example", 2, args)
-  }
-}
+//object LinearRegressionWithCD2Example {
+//
+//  def main(args: Array[String]) {
+//    LinearRegressionWithCDRunner.run("LinearRegressionWithCD2Example", 2, args)
+//  }
+//}
 
 private object LinearRegressionWithCDRunner extends Logging {
 

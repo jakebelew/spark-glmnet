@@ -32,18 +32,18 @@ import org.apache.spark.util.StatCounter
 //LinearRegressionWithCDExample
 object DataTransformPrototype extends Logging {
 
-  def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("DataTransformPrototype").setMaster("local[2]")
-    val sc = new SparkContext(conf)
-    val sqlContext = new SQLContext(sc)
-    import sqlContext.implicits._
-
-    val training = org.apache.spark.mllib.util.LinearDataGenerator.generateLinearRDD(sc, 2000, 2000, 0.1, 2, 6.2)
-
-    new LR().fit(training.toDF())
-
-    sc.stop()
-  }
+//  def main(args: Array[String]) {
+//    val conf = new SparkConf().setAppName("DataTransformPrototype").setMaster("local[2]")
+//    val sc = new SparkContext(conf)
+//    val sqlContext = new SQLContext(sc)
+//    import sqlContext.implicits._
+//
+//    val training = org.apache.spark.mllib.util.LinearDataGenerator.generateLinearRDD(sc, 2000, 2000, 0.1, 2, 6.2)
+//
+//    new LR().fit(training.toDF())
+//
+//    sc.stop()
+//  }
 }
 
 //LinearRegressionWithCD

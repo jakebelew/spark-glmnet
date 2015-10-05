@@ -12,27 +12,27 @@ object XCorrelationPerformanceComparison {
 
   private val ELEMENTS_PER_MiB = 131072
 
-  def main(args: Array[String]) {
-
-    if (args.length < 3) throw new Exception("required args: startNumRows startNumCols maxMemoryInBytes")
-
-    val startNumRows = args(0).toInt
-    val startNumCols = args(1).toInt
-    val maxMemoryInBytes = args(2).toLong
-
-    test(startNumRows, startNumCols, maxMemoryInBytes)
-    //functional correctness
-    //test(1, 1, 1000)
-
-    // square dataset
-    //test(1, 1, 1000000000)
-
-    // tall 10M x 10k dataset
-    //test(100, 1, 1000000000)
-
-    // wide 10k x 10M dataset
-    //test(1, 100, 1000000000)
-  }
+//  def main(args: Array[String]) {
+//
+//    if (args.length < 3) throw new Exception("required args: startNumRows startNumCols maxMemoryInBytes")
+//
+//    val startNumRows = args(0).toInt
+//    val startNumCols = args(1).toInt
+//    val maxMemoryInBytes = args(2).toLong
+//
+//    test(startNumRows, startNumCols, maxMemoryInBytes)
+//    //functional correctness
+//    //test(1, 1, 1000)
+//
+//    // square dataset
+//    //test(1, 1, 1000000000)
+//
+//    // tall 10M x 10k dataset
+//    //test(100, 1, 1000000000)
+//
+//    // wide 10k x 10M dataset
+//    //test(1, 100, 1000000000)
+//  }
 
   def test(startNumRows: Int, startNumCols: Int, maxMemoryInBytes: Long, growthMultiplier: Int = 2) = {
     println("format: (rows x columns)")
