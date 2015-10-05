@@ -28,61 +28,96 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{ Vector => BV }
 import nonsubmit.utils.Timer
+//import org.apache.spark.ml.regression.LinearRegressionWithCDParams
+import org.apache.spark.ml.util.Identifiable
+import org.apache.spark.ml.param.ParamMap
+import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
+import org.apache.spark.ml.PredictorParams
+import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
+import org.apache.spark.ml.param.shared._
+//import org.apache.spark.ml.regression.tempSharedParams
 
 /**
- * Class used to solve an optimization problem using Coordinate Descent.
+ * Params for coordinate descent.
  */
-//TODO - Faster version in the works
-class CoordinateDescent private[spark] extends CDOptimizer
-  with Logging {
-
-  private var alpha: Double = 1.0
-  private var lamShrnk: Double = 0.001
-  private var numIterations: Int = 100
+private[spark] trait CoordinateDescentParams {
+  var elasticNetParam: Double = 0.01
+  var lambdaShrink: Double = 0.001
+  var maxIter: Int = 100
+  var tol: Double = 1E-3
+  var logSaveAll: Boolean = false
 
   /**
-   * Set the alpha. Default 1.0.
+   * Set the elasticNetParam. Default 0.01.
    */
-  def setAlpha(step: Double): this.type = {
-    this.alpha = step
+  def setElasticNetParam(elasticNetParam: Double): this.type = {
+    this.elasticNetParam = elasticNetParam
     this
   }
 
   /**
    * Set the lambda shrinkage parameter. Default 0.001.
    */
-  def setLamShrnk(regParam: Double): this.type = {
-    this.lamShrnk = regParam
+  def setLambdaShrink(lambdaShrink: Double): this.type = {
+    this.lambdaShrink = lambdaShrink
     this
   }
 
   /**
    * Set the number of iterations for CD. Default 100.
    */
-  def setNumIterations(iters: Int): this.type = {
-    this.numIterations = iters
+  def setMaxIter(maxIter: Int): this.type = {
+    this.maxIter = maxIter
     this
   }
 
+  /**
+   * Set the tol. Default 0.01.
+   */
+  def setTol(tol: Double): this.type = {
+    this.tol = tol
+    this
+  }
+
+  /**
+   * Set logSaveAll. Default false.
+   */
+  def setLogSaveAll(logSaveAll: Boolean): this.type = {
+    this.logSaveAll = logSaveAll
+    this
+  }
+}
+
+/**
+ * Class used to solve an optimization problem using Coordinate Descent.
+ */
+//TODO - Faster version in the works
+private[spark] class CoordinateDescent extends CDOptimizer // with CoordinateDescentParams
+  with Logging {
+
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+    logInfo(s"CoordinateDescent_params logSaveAll: $logSaveAll")
     CoordinateDescent.runCD2(
       data,
       initialWeights,
       xy,
-      alpha,
-      lamShrnk,
-      numIterations,
+      elasticNetParam,
+      lambdaShrink,
+      maxIter,
+      tol,
       numFeatures, numRows)
   }
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
+    logInfo(s"CoordinateDescent_params logSaveAll: $logSaveAll")
     CoordinateDescent.runCD2(
       data,
       initialWeights,
       xy,
-      alpha,
-      lamShrnk,
-      numIterations,
+      elasticNetParam,
+      lambdaShrink,
+      maxIter,
+      tol,
       lambdaIndex,
       numFeatures, numRows)
   }
@@ -100,17 +135,29 @@ class CoordinateDescent private[spark] extends CDOptimizer
 @DeveloperApi
 object CoordinateDescent extends Logging {
 
-  def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+  def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+
+    logInfo(s"CoordinateDescent_params elasticNetParam: $alpha")
+    logInfo(s"CoordinateDescent_params numLambdas: $lamShrnk")
+    logInfo(s"CoordinateDescent_params maxIter: $numIterations")
+    logInfo(s"CoordinateDescent_params tol: $tol")
+
     val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, numIterations, numRows): Array[Double]
-    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, numFeatures, numRows)
+    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, tol, numFeatures, numRows)
   }
 
-  def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
+  def runCD2(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
+
+    logInfo(s"CoordinateDescent_params elasticNetParam: $alpha")
+    logInfo(s"CoordinateDescent_params numLambdas: $lamShrnk")
+    logInfo(s"CoordinateDescent_params maxIter: $numIterations")
+    logInfo(s"CoordinateDescent_params tol: $tol")
+
     val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, lambdaIndex + 1, numRows): Array[Double]
-    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, numFeatures, numRows).last._2
+    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, tol, numFeatures, numRows).last._2
   }
 
-  private def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+  private def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     //data.persist(StorageLevel.MEMORY_AND_DISK)
     //logRDD("data before persist", data)
     var totalNumNewBeta = 0
@@ -130,7 +177,7 @@ object CoordinateDescent extends Logging {
       if (n < lambdas.length) {
         logDebug(s"Lambda number: ${n + 1}")
         val newLambda = lambdas(n)
-        val (newBeta, numNewBeta) = cdIter(data, oldBeta, newLambda, alpha, xy, xx, numFeatures, numRows)
+        val (newBeta, numNewBeta) = cdIter(data, oldBeta, newLambda, alpha, xy, xx, tol, numFeatures, numRows)
         totalNumNewBeta += numNewBeta
         logNewBeta(numNewBeta, totalNumNewBeta)
         results += Pair(newLambda, newBeta.copy)
@@ -203,17 +250,15 @@ object CoordinateDescent extends Logging {
 
   def S(z: Double, gamma: Double): Double = if (gamma >= abs(z)) 0.0 else (z / abs(z)) * (abs(z) - gamma)
 
-  def cdIter(data: RDD[(Double, Vector)], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix, numFeatures: Int, numRows: Long): (Vector, Int) = {
+  def cdIter(data: RDD[(Double, Vector)], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix, tol: Double, numFeatures: Int, numRows: Long): (Vector, Int) = {
     var numNewBeta = 0
-    //val eps = 0.01
-    val eps = 0.001
     val numCDIter = 100
     val ridgePenaltyShrinkage = 1 + newLambda * (1 - alpha)
     val gamma = newLambda * alpha
 
     @tailrec
     def loop(beta: Vector, deltaBeta: Double, firstPass: Boolean, n: Int): Vector = {
-      if (deltaBeta <= eps || n == 0) {
+      if (deltaBeta <= tol || n == 0) {
         beta
       } else {
         val betaStart = beta.copy

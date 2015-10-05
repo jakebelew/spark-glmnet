@@ -1,4 +1,4 @@
-name := "spark-glmnet"
+name := "spark-glmnet6"
 
 version := "1.5"
 
@@ -21,6 +21,7 @@ libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % "1.4.1",
   "org.apache.spark" %% "spark-sql" % "1.4.1",
   "org.apache.spark" %% "spark-mllib" % "1.4.1",
+//  "org.apache.spark" %% "spark-examples" % "1.4.1",
   "com.github.fommil.netlib" % "all" % "1.1.2" pomOnly(),
   "org.scalanlp" %% "breeze" % "0.11.2",
   "org.apache.commons" % "commons-lang3" % "3.0",

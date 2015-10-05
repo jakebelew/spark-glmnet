@@ -37,86 +37,36 @@ import org.apache.spark.mllib.optimization.CoordinateDescent2
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
 
-///**
-// * (private[ml]) Trait for shared param maxIter.
-// */
-private[ml] trait HasLambdaIndex extends Params {
-
-  /**
-   * Param for lambda index (>= 0).
-   * @group param
-   */
-  final val lambdaIndex: IntParam = new IntParam(this, "lambdaIndex", "lambda index (>= 0)", ParamValidators.gtEq(0))
-
-  /** @group getParam */
-  final def getLambdaIndex: Int = $(lambdaIndex)
-}
-
-//TODO - Temporary param to allow testing multiple versions of CoordinateDescent with minimum code duplication
-private[ml] trait HasOptimizerVersion extends Params {
-
-  /**
-   * Param for optimizerVersion (>= 0).
-   * @group param
-   */
-  final val optimizerVersion: IntParam = new IntParam(this, "optimizerVersion", "optimizerVersion (>= 0)", ParamValidators.gtEq(0))
-
-  /** @group getParam */
-  final def getOptimizerVersion: Int = $(optimizerVersion)
-}
-
 /**
  * Params for linear regression.
  */
-private[regression] trait LinearRegressionWithCDParams extends PredictorParams
-  with HasRegParam with HasElasticNetParam with HasMaxIter with HasTol with HasLambdaIndex with HasOptimizerVersion
-
-class LinearRegressionWithCD(override val uid: String)
-  extends Regressor[Vector, LinearRegressionWithCD, LinearRegressionWithCDModel]
-  with LinearRegressionWithCDParams with Logging {
-
-  def this() = this(Identifiable.randomUID("linReg"))
+private[spark] trait LinearRegressionWithCDParams extends PredictorParams with HasLambdaIndex with HasLogSaveAll with HasElasticNetParam
+  with HasNumLambdas with HasMaxIter with HasTol with HasLambdaShrink with HasFitIntercept with HasOptimizerVersion {
 
   def setLambdaIndex(value: Int): this.type = set(lambdaIndex, value)
   setDefault(lambdaIndex -> 99)
 
-  /**
-   * Set the regularization parameter.
-   * Default is 0.0.
-   * @group setParam
-   */
-  def setRegParam(value: Double): this.type = set(regParam, value)
-  setDefault(regParam -> 0.0)
-
-  //  /**
-  //   * Set if we should fit the intercept
-  //   * Default is true.
-  //   * @group setParam
-  //   */
-  //  def setFitIntercept(value: Boolean): this.type = set(fitIntercept, value)
-  //  setDefault(fitIntercept -> true)
-  //
-  //  /**
-  //   * Whether to standardize the training features before fitting the model.
-  //   * The coefficients of models will be always returned on the original scale,
-  //   * so it will be transparent for users. Note that with/without standardization,
-  //   * the models should be always converged to the same solution when no regularization
-  //   * is applied. In R's GLMNET package, the default behavior is true as well.
-  //   * Default is true.
-  //   * @group setParam
-  //   */
-  //  def setStandardization(value: Boolean): this.type = set(standardization, value)
-  //  setDefault(standardization -> true)
+  //TODO - Temporary param to allow testing multiple versions of CoordinateDescent with minimum code duplication
+  def setOptimizerVersion(value: Int): this.type = set(optimizerVersion, value)
+  setDefault(optimizerVersion -> 1)
 
   /**
    * Set the ElasticNet mixing parameter.
    * For alpha = 0, the penalty is an L2 penalty. For alpha = 1, it is an L1 penalty.
-   * For 0 < alpha < 1, the penalty is a combination of L1 and L2.
-   * Default is 0.0 which is an L2 penalty.
+   * For 0.01 < alpha < 1, the penalty is a combination of L1 and L2.
+   * Default is 0.01.
    * @group setParam
    */
   def setElasticNetParam(value: Double): this.type = set(elasticNetParam, value)
-  setDefault(elasticNetParam -> 0.0)
+  setDefault(elasticNetParam -> 0.01)
+
+  /**
+   * Set the number of Lambdas.
+   * Default is 100.
+   * @group setParam
+   */
+  def setNumLambdas(value: Int): this.type = set(numLambdas, value)
+  setDefault(numLambdas -> 100)
 
   /**
    * Set the maximum number of iterations.
@@ -126,10 +76,6 @@ class LinearRegressionWithCD(override val uid: String)
   def setMaxIter(value: Int): this.type = set(maxIter, value)
   setDefault(maxIter -> 100)
 
-  //TODO - Temporary param to allow testing multiple versions of CoordinateDescent with minimum code duplication
-  def setOptimizerVersion(value: Int): this.type = set(optimizerVersion, value)
-  setDefault(optimizerVersion -> 1)
-
   /**
    * Set the convergence tolerance of iterations.
    * Smaller value will lead to higher accuracy with the cost of more iterations.
@@ -137,7 +83,39 @@ class LinearRegressionWithCD(override val uid: String)
    * @group setParam
    */
   def setTol(value: Double): this.type = set(tol, value)
-  setDefault(tol -> 1E-6)
+  setDefault(tol -> 1E-3)
+
+  /**
+   * Set the convergence tolerance of iterations.
+   * Smaller value will lead to higher accuracy with the cost of more iterations.
+   * Default is 1E-3.
+   * @group setParam
+   */
+  def setLambdaShrink(value: Double): this.type = set(lambdaShrink, value)
+  setDefault(lambdaShrink -> 1E-3)
+
+  /**
+   * Set whether to fit intercept.
+   * Default is false.
+   * @group setParam
+   */
+  def setFitIntercept(value: Boolean): this.type = set(fitIntercept, value)
+  setDefault(fitIntercept -> true)
+
+  /**
+   * Set whether to put intermediate values in a log file.
+   * Default is false.
+   * @group setParam
+   */
+  def setLogSaveAll(value: Boolean): this.type = set(logSaveAll, value)
+  setDefault(logSaveAll -> false)
+}
+
+class LinearRegressionWithCD(override val uid: String)
+  extends Regressor[Vector, LinearRegressionWithCD, LinearRegressionWithCDModel]
+  with LinearRegressionWithCDParams with Logging {
+
+  def this() = this(Identifiable.randomUID("linReg"))
 
   /**
    * Fits multiple models to the input data with multiple sets of parameters.
@@ -169,7 +147,13 @@ class LinearRegressionWithCD(override val uid: String)
       val alphaS = paramMaps(index).get(elasticNetParam).getOrElse(1.0)
       val optimizer = newOptimizer
         //.setAlpha($(elasticNetParam))
-        .setAlpha(alphaS)
+        .setElasticNetParam(alphaS)
+      //TODO set these parameters
+      //  var elasticNetParam: Double = 0.01
+      //  var lambdaShrink: Double = 0.001
+      //  var maxIter: Int = 100
+      //  var tol: Double = 1E-3
+      //  var logSaveAll: Boolean = false
 
       val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows).unzip
       //rawWeights.foreach { rw => logDebug(s"Raw Weights ${rw.toArray.mkString(",")}") }
@@ -182,7 +166,7 @@ class LinearRegressionWithCD(override val uid: String)
 
   private val fitSingleModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
     val optimizer = newOptimizer
-      .setAlpha($(elasticNetParam))
+      .setElasticNetParam($(elasticNetParam))
 
     logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
     val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), stats.numFeatures, numRows).toArray
