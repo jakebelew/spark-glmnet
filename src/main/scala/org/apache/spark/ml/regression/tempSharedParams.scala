@@ -59,7 +59,7 @@ private[ml] trait HasLambdaShrink extends Params {
    * Param for lambda index (>= 0).
    * @group param
    */
-  final val lambdaShrink: DoubleParam = new DoubleParam(this, "lambdaShrink ", "lambda shrink (>= 0.0)", ParamValidators.gtEq(0))
+  final val lambdaShrink: DoubleParam = new DoubleParam(this, "lambdaShrink", "lambda shrink (>= 0.0)", ParamValidators.gtEq(0))
 
   /** @group getParam */
   final def getLambdaShrink: Double = $(lambdaShrink)

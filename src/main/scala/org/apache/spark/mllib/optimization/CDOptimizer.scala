@@ -8,7 +8,7 @@ trait CDOptimizer extends Serializable with CoordinateDescentParams {
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numFeatures: Int, numRows: Long): List[(Double, Vector)]
 
-  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector
+  //def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector
 
   def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double]
 }

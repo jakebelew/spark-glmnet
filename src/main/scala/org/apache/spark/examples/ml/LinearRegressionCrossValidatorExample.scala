@@ -45,7 +45,7 @@ object LinearRegressionCrossValidatorExample extends Logging {
     tol: Double = 1E-3, //  tolerance for beta loop, or until maxIter
     lambdaShrink: Double = 1E-3,
     fitIntercept: Boolean = true,
-    numFolds: Int = 1,
+    numFolds: Int = 2,
     logSaveAll: Boolean = false) extends AbstractParams[Params]
 
   object ScoptV330 {
@@ -132,7 +132,7 @@ object LinearRegressionCrossValidatorExample extends Logging {
       .setEstimator(lr)
       .setEvaluator(new RegressionEvaluator)
       .setEstimatorParamMaps(paramGrid)
-      .setNumFolds(2) // Use 3+ in practice
+      .setNumFolds(params.numFolds) // Use 3+ in practice
 
     // Run cross-validation, and choose the best set of parameters.
     val cvModel = crossval.fit(training)
@@ -192,7 +192,7 @@ object LinearRegressionCrossValidatorExample extends Logging {
       .randomSplit(Array(1.0 - fracTest, fracTest), seed = 12345)
 
     val dataFrames = (data(0).toDF(), data(1).toDF())
-    logInfo(s"generated data; nexamples: ${nexamples}, nfeatures: ${nfeatures}, eps: ${eps}, intercept: ${intercept}, fracTest: ${fracTest}, training nexamples: ${dataFrames._1.count}, test nexamples: ${dataFrames._2.count}")
+    logInfo(s"Generated data: [numExamples: ${nexamples}, numFeatures: ${nfeatures}, eps: ${eps}, intercept: ${intercept}, fracTest: ${fracTest}, training numExamples: ${dataFrames._1.count}, test numExamples: ${dataFrames._2.count}]")
     dataFrames
   }
 }

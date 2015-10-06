@@ -139,21 +139,13 @@ class LinearRegressionWithCD(override val uid: String)
     if ($(optimizerVersion) == 2) new CoordinateDescent2() else new CoordinateDescent()
 
   private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
-    val boundaryIndices = new Range(0, paramMaps.length, $(maxIter))
+    val boundaryIndices = new Range(0, paramMaps.length, $(numLambdas))
     val models = new MutableList[LinearRegressionWithCDModel]
 
     boundaryIndices.foreach(index => {
-      //copy(paramMap).fit(dataset)    
-      val alphaS = paramMaps(index).get(elasticNetParam).getOrElse(1.0)
       val optimizer = newOptimizer
-        //.setAlpha($(elasticNetParam))
-        .setElasticNetParam(alphaS)
-      //TODO set these parameters
-      //  var elasticNetParam: Double = 0.01
-      //  var lambdaShrink: Double = 0.001
-      //  var maxIter: Int = 100
-      //  var tol: Double = 1E-3
-      //  var logSaveAll: Boolean = false
+      copyValues(optimizer)
+      copyValues(optimizer, paramMaps(index))
 
       val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows).unzip
       //rawWeights.foreach { rw => logDebug(s"Raw Weights ${rw.toArray.mkString(",")}") }
@@ -166,10 +158,11 @@ class LinearRegressionWithCD(override val uid: String)
 
   private val fitSingleModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
     val optimizer = newOptimizer
-      .setElasticNetParam($(elasticNetParam))
+    copyValues(optimizer)
 
     logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
-    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), stats.numFeatures, numRows).toArray
+    //val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), stats.numFeatures, numRows).toArray
+    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows)($(lambdaIndex))._2.toArray
     val model = createModel(rawWeights, stats)
     Seq(model)
   }
@@ -278,6 +271,38 @@ class LinearRegressionWithCD(override val uid: String)
     model
   }
 
+  private def copyValues(optimizer: CDOptimizer, map: ParamMap) = {
+    params.foreach { param =>
+      if (map.contains(param)) {
+        //logDebug(s"Copy ParamMap values: [param.name: ${param.name}, param.value: ${map(param)}, param.type: ${param.getClass().getName()}]")
+        param.name match {
+          case "elasticNetParam" => optimizer.setElasticNetParam(map(param).asInstanceOf[Double])
+          case "lambdaShrink" => optimizer.setLambdaShrink(map(param).asInstanceOf[Double])
+          case "numLambdas" => optimizer.setNumLambdas(map(param).asInstanceOf[Int])
+          case "maxIter" => optimizer.setMaxIter(map(param).asInstanceOf[Int])
+          case "tol" => optimizer.setTol(map(param).asInstanceOf[Double])
+          case "logSaveAll" => optimizer.setLogSaveAll(map(param).asInstanceOf[Boolean])
+          case _ =>
+        }
+      }
+    }
+  }
+
+  private def copyValues(optimizer: CDOptimizer) = {
+    params.foreach { param =>
+      //logDebug(s"Copy LR values: [param.name: ${param.name}, param.value: ${$(param)}, param.type: ${param.getClass().getName()}]")
+      param.name match {
+        case "elasticNetParam" => optimizer.setElasticNetParam($(elasticNetParam))
+        case "lambdaShrink" => optimizer.setLambdaShrink($(lambdaShrink))
+        case "numLambdas" => optimizer.setNumLambdas($(numLambdas))
+        case "maxIter" => optimizer.setMaxIter($(maxIter))
+        case "tol" => optimizer.setTol($(tol))
+        case "logSaveAll" => optimizer.setLogSaveAll($(logSaveAll))
+        case _ =>
+      }
+    }
+  }
+
   override def copy(extra: ParamMap): LinearRegressionWithCD = defaultCopy(extra)
 }
 
@@ -291,7 +316,7 @@ class LinearRegressionWithCDModel private[ml] (
   val weights: Vector,
   val intercept: Double)
   extends RegressionModel[Vector, LinearRegressionWithCDModel]
-  with LinearRegressionParams {
+  with LinearRegressionWithCDParams {
 
   /** The order of weights - from largest to smallest. Returns the indexes of the weights in descending order of the absolute value. */
   def orderOfWeights(): Array[Int] =

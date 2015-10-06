@@ -47,23 +47,24 @@ private[spark] class CoordinateDescent2 extends CDOptimizer // with CoordinateDe
       xy,
       elasticNetParam,
       lambdaShrink,
+      numLambdas,
       maxIter,
       tol,
       numFeatures, numRows)
   }
 
-  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
-    CoordinateDescent2.runCD(
-      data,
-      initialWeights,
-      xy,
-      elasticNetParam,
-      lambdaShrink,
-      maxIter,
-      tol,
-      lambdaIndex,
-      numFeatures, numRows)
-  }
+  //  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
+  //    CoordinateDescent2.runCD(
+  //      data,
+  //      initialWeights,
+  //      xy,
+  //      elasticNetParam,
+  //      lambdaShrink,
+  //      maxIter,
+  //      tol,
+  //      lambdaIndex,
+  //      numFeatures, numRows)
+  //  }
 
   //TODO - Temporary to allow testing multiple versions of CoordinateDescent with minimum code duplication - remove to Object method only later
   def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
@@ -78,15 +79,17 @@ private[spark] class CoordinateDescent2 extends CDOptimizer // with CoordinateDe
 @DeveloperApi
 object CoordinateDescent2 extends Logging {
 
-  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
-    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, numIterations, numRows): Array[Double]
-    optimize(convertToMatrix(data), initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, tol, numFeatures, numRows)
+  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numLambdas: Int, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+    logInfo(s"Performing coordinate descent with: [elasticNetParam: $alpha, lamShrnk: $lamShrnk, numLambdas: $numLambdas, maxIter: $maxIter, tol: $tol]")
+
+    val lambdas = computeLambdas(xy, alpha, lamShrnk, numLambdas, numLambdas, numRows): Array[Double]
+    optimize(convertToMatrix(data), initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
   }
 
-  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
-    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, lambdaIndex + 1, numRows): Array[Double]
-    optimize(convertToMatrix(data), initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, tol, numFeatures, numRows).last._2
-  }
+  //  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
+  //    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, lambdaIndex + 1, numRows): Array[Double]
+  //    optimize(convertToMatrix(data), initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, tol, numFeatures, numRows).last._2
+  //  }
 
   //TODO - Persistence needs to done from the LR for optimum
   private def convertToMatrix(data: RDD[(Double, Vector)]): RDD[DenseMatrix] = {
@@ -96,7 +99,7 @@ object CoordinateDescent2 extends Logging {
     matrixRDD
   }
 
-  private def optimize(data: RDD[DenseMatrix], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+  private def optimize(data: RDD[DenseMatrix], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     //data.persist(StorageLevel.MEMORY_AND_DISK)
     //logRDD("data before persist", data)
     var totalNumNewBeta = 0
@@ -116,7 +119,7 @@ object CoordinateDescent2 extends Logging {
       if (n < lambdas.length) {
         logDebug(s"Lambda number: ${n + 1}")
         val newLambda = lambdas(n)
-        val (newBeta, numNewBeta) = cdIter(data, oldBeta, newLambda, alpha, xy, xx, tol, numRows)
+        val (newBeta, numNewBeta) = cdIter(data, oldBeta, newLambda, alpha, xy, xx, tol, maxIter, numRows)
         totalNumNewBeta += numNewBeta
         logNewBeta(numNewBeta, totalNumNewBeta)
         results += Pair(newLambda, newBeta.copy)
@@ -129,13 +132,13 @@ object CoordinateDescent2 extends Logging {
     results.toList
   }
 
-  def logNewBeta(numNewBeta: Int, totalNumNewBeta: Int) = {
+  private def logNewBeta(numNewBeta: Int, totalNumNewBeta: Int) = {
     if (numNewBeta > 0) {
       logDebug(s"numNewBeta: $numNewBeta,  totalNumNewBeta: $totalNumNewBeta")
     }
   }
 
-  def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
+  private def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
     val xy = data.treeAggregate(new InitLambda2(numFeatures))(
       (aggregate, row) => aggregate.compute(row),
       (aggregate1, aggregate2) => aggregate1.combine(aggregate2)).xy
@@ -143,8 +146,8 @@ object CoordinateDescent2 extends Logging {
     xy.map(_ / numRows)
   }
 
-  def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
-    logDebug(s"alpha: $alpha, lamShrnk: $lamShrnk, numIterations: $lambdaRange, numRows: $numRows")
+  private def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
+    //logDebug(s"alpha: $alpha, lamShrnk: $lamShrnk, maxIter: $lambdaRange, numRows: $numRows")
 
     val maxXY = xy.map(abs).max(Ordering.Double)
     val lambdaInit = maxXY / alpha
@@ -168,7 +171,7 @@ object CoordinateDescent2 extends Logging {
     lambdas.toArray
   }
 
-  def populateXXMatrix(data: RDD[DenseMatrix], newIndexes: Array[Int], xx: CDSparseMatrix2, numRows: Long): Unit = {
+  private def populateXXMatrix(data: RDD[DenseMatrix], newIndexes: Array[Int], xx: CDSparseMatrix2, numRows: Long): Unit = {
     Timer("xCorrelation").start
     val correlatedX = xCorrelation(data, newIndexes, xx.numFeatures, numRows)
     Timer("xCorrelation").end
@@ -177,7 +180,7 @@ object CoordinateDescent2 extends Logging {
     Timer("xx.update").end
   }
 
-  def xCorrelation(data: RDD[DenseMatrix], newColIndexes: Array[Int], numFeatures: Int, numRows: Long): Matrix = {
+  private def xCorrelation(data: RDD[DenseMatrix], newColIndexes: Array[Int], numFeatures: Int, numRows: Long): Matrix = {
     val numNewBeta = newColIndexes.size
 
     val xx = data.treeAggregate(new XCorrelation2(newColIndexes, numFeatures))(
@@ -187,11 +190,10 @@ object CoordinateDescent2 extends Logging {
     Matrices.fromBreeze(xx.toBreeze :/= (numRows.toDouble))
   }
 
-  def S(z: Double, gamma: Double): Double = if (gamma >= abs(z)) 0.0 else (z / abs(z)) * (abs(z) - gamma)
+  private def S(z: Double, gamma: Double): Double = if (gamma >= abs(z)) 0.0 else (z / abs(z)) * (abs(z) - gamma)
 
-  def cdIter(data: RDD[DenseMatrix], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix2, tol: Double, numRows: Long): (Vector, Int) = {
+  private def cdIter(data: RDD[DenseMatrix], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix2, tol: Double, maxIter: Int, numRows: Long): (Vector, Int) = {
     var numNewBeta = 0
-    val numCDIter = 100
     val ridgePenaltyShrinkage = 1 + newLambda * (1 - alpha)
     val gamma = newLambda * alpha
 
@@ -227,7 +229,7 @@ object CoordinateDescent2 extends Logging {
       }
     }
 
-    (loop(oldBeta, 100.0, true, numCDIter), numNewBeta)
+    (loop(oldBeta, 100.0, true, maxIter), numNewBeta)
   }
 }
 
