@@ -1,4 +1,4 @@
-package nonsubmit.utils
+package org.apache.spark.mllib.nonsubmit
 
 import org.apache.spark.{ SparkContext, SparkConf, Logging }
 import org.apache.spark.mllib.linalg.{ DenseMatrix, Vectors, DenseVector }
@@ -8,6 +8,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ SQLContext, DataFrame }
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.StatCounter
+import breeze.linalg.{ *, DenseMatrix => BDM }
 
 //Transform Input Dataset to a normalized and persisted RDD[(Vector, Matrix)]
 //
@@ -47,7 +48,7 @@ object DataTransformPrototype extends Logging {
 }
 
 //LinearRegressionWithCD
-class LR extends Logging { //with HasLabelCol with HasFeaturesCol {
+class LR extends Serializable with Logging { //with HasLabelCol with HasFeaturesCol {
 
   private def normalizeDataSet(dataset: DataFrame): (RDD[(DenseVector, DenseMatrix)], Stats) = {
     val denseRDD = RowPartionedTransformer.labeledPointsToMatrix(dataset)
@@ -75,13 +76,22 @@ class LR extends Logging { //with HasLabelCol with HasFeaturesCol {
     val stats = Stats(summarizer, statCounter)
 
     //TODO - normalize in place to avoid double memory or double reads, but map so that a partition can be recreated correctly? 
-    //TODO - Test this on AWS by stopping an executor instance on a long running LR
+    //TODO - Test that partition is recreated on AWS by stopping an executor instance on a long running LR
     denseRDD.foreach {
       case (labels: DenseVector, features: DenseMatrix) =>
-      //TODO - perform in-place normalization with Breeze
+        normalizePartition(labels, features, stats)
     }
 
     (denseRDD, stats)
+  }
+
+  private def normalizePartition(labels: DenseVector, features: DenseMatrix, stats: Stats) = {
+    val bLabels = labels.toBreeze
+    bLabels :-= stats.yMean
+    bLabels :/= stats.yStd
+    val bFeatures = new BDM(features.numRows, features.numCols, features.values)(*, ::)
+    bFeatures :-= stats.featuresMean.toBreeze
+    bFeatures :/= stats.featuresStd.toBreeze
   }
 
   case class Stats(summarizer: Summarizer, statCounter: StatCounter) {
@@ -96,6 +106,7 @@ class LR extends Logging { //with HasLabelCol with HasFeaturesCol {
     val (normalizedInstances, stats) = normalizeDataSet(dataset)
     println(s"stats:\nnumFeatures: ${stats.numFeatures}\nyMean: ${stats.yMean}\nStd: ${stats.yStd}\nfeaturesMean: ${stats.featuresMean}\nfeaturesStd: ${stats.featuresStd}")
     println(s"\nnormalizedInstances:\n${normalizedInstances.toDebugString}")
+    normalizedInstances.foreach(f => println(s"normalizedInstances labels:\n${f._1}, features:\n${f._2}"))
   }
 
   //  private def fit(dataset: DataFrame, f: (RDD[(Double, Vector)], Vector, Array[Double], Long, Stats, Array[ParamMap]) => Seq[LinearRegressionWithCDModel], paramMaps: Array[ParamMap] = Array()): Seq[LinearRegressionWithCDModel] = {
