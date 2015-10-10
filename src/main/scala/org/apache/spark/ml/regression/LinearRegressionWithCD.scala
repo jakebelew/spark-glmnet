@@ -31,9 +31,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
 import org.apache.spark.storage.StorageLevel
 import scala.collection.mutable.MutableList
-import org.apache.spark.mllib.optimization.CDOptimizer
-import org.apache.spark.mllib.optimization.CoordinateDescent
-import org.apache.spark.mllib.optimization.CoordinateDescent2
+import org.apache.spark.mllib.optimization.{ CoordinateDescent, CoordinateDescentParams }
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
 
@@ -135,8 +133,7 @@ class LinearRegressionWithCD(override val uid: String)
     fit(dataset, fitSingleModel)(0)
   }
 
-  private def newOptimizer =
-    if ($(optimizerVersion) == 2) new CoordinateDescent2() else new CoordinateDescent()
+  private def newOptimizer = new CoordinateDescent()
 
   private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
     val boundaryIndices = new Range(0, paramMaps.length, $(numLambdas))
@@ -221,7 +218,7 @@ class LinearRegressionWithCD(override val uid: String)
     (normalizedInstances, scalerModel)
   }
 
-  private def createModelsWithInterceptAndWeightsOfZeros(dataset: DataFrame, yMean: Double, numFeatures: Int): Seq[LinearRegressionWithCDModel] = {
+  protected[regression] def createModelsWithInterceptAndWeightsOfZeros(dataset: DataFrame, yMean: Double, numFeatures: Int): Seq[LinearRegressionWithCDModel] = {
     logWarning(s"The standard deviation of the label is zero, so the weights will be zeros " +
       s"and the intercept will be the mean of the label; as a result, training is not needed.")
 
@@ -239,7 +236,7 @@ class LinearRegressionWithCD(override val uid: String)
     Seq(copyValues(model))
   }
 
-  private def createModel(rawWeights: Array[Double], stats: Stats): LinearRegressionWithCDModel = {
+  protected[regression] def createModel(rawWeights: Array[Double], stats: Stats): LinearRegressionWithCDModel = {
     /* The weights are trained in the scaled space; we're converting them back to the original space. */
     val weights = {
       var i = 0
@@ -271,7 +268,7 @@ class LinearRegressionWithCD(override val uid: String)
     model
   }
 
-  private def copyValues(optimizer: CDOptimizer, map: ParamMap) = {
+  protected[regression] def copyValues(optimizer: CoordinateDescentParams, map: ParamMap) = {
     params.foreach { param =>
       if (map.contains(param)) {
         //logDebug(s"Copy ParamMap values: [param.name: ${param.name}, param.value: ${map(param)}, param.type: ${param.getClass().getName()}]")
@@ -288,7 +285,7 @@ class LinearRegressionWithCD(override val uid: String)
     }
   }
 
-  private def copyValues(optimizer: CDOptimizer) = {
+  protected[regression] def copyValues(optimizer: CoordinateDescentParams) = {
     params.foreach { param =>
       //logDebug(s"Copy LR values: [param.name: ${param.name}, param.value: ${$(param)}, param.type: ${param.getClass().getName()}]")
       param.name match {

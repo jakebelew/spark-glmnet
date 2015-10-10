@@ -17,30 +17,28 @@
 
 package org.apache.spark.mllib.optimization
 
-import java.lang.Math.abs
 import scala.annotation.tailrec
 import scala.collection.mutable.MutableList
-import scala.math.exp
+import scala.math.{ abs, exp }
 import org.apache.spark.Logging
 import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.mllib.linalg.{ Vector, Vectors }
+import org.apache.spark.mllib.linalg.BLAS
+import org.apache.spark.mllib.linalg.{ DenseVector, Matrices, Matrix, DenseMatrix, Vector, Vectors }
+import org.apache.spark.mllib.linalg.mlmatrix.RowPartionedTransformer
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
-import breeze.linalg.{ Vector => BV }
+import breeze.linalg.{ *, Vector => BV, DenseMatrix => BDM }
 import nonsubmit.utils.Timer
-import org.apache.spark.mllib.linalg.mlmatrix.RowPartionedTransformer
-import org.apache.spark.mllib.linalg.{ Matrices, Matrix, DenseMatrix }
-//import org.apache.spark.mllib.linalg.BLAS
 
 /**
  * Class used to solve an optimization problem using Coordinate Descent.
  */
-//TODO - Version Two of CD that will provide a BLAS Level 3 computation of the XCorrelation
+//Version Two of CD that will provide a BLAS Level 3 computation of the XCorrelation
 //computing XCorrelation originally took 97% of CD time for large number of rows and 45% of CD time for a large number of columns
 private[spark] class CoordinateDescent2 extends CDOptimizer // with CoordinateDescentParams
   with Logging {
 
-  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+  def optimize(data: RDD[(DenseVector, DenseMatrix)], initialWeights: Vector, xy: Array[Double], numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     CoordinateDescent2.runCD(
       data,
       initialWeights,
@@ -53,21 +51,8 @@ private[spark] class CoordinateDescent2 extends CDOptimizer // with CoordinateDe
       numFeatures, numRows)
   }
 
-  //  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
-  //    CoordinateDescent2.runCD(
-  //      data,
-  //      initialWeights,
-  //      xy,
-  //      elasticNetParam,
-  //      lambdaShrink,
-  //      maxIter,
-  //      tol,
-  //      lambdaIndex,
-  //      numFeatures, numRows)
-  //  }
-
   //TODO - Temporary to allow testing multiple versions of CoordinateDescent with minimum code duplication - remove to Object method only later
-  def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
+  def computeXY(data: RDD[(DenseVector, DenseMatrix)], numFeatures: Int, numRows: Long): Array[Double] = {
     CoordinateDescent2.computeXY(data, numFeatures, numRows)
   }
 }
@@ -79,29 +64,14 @@ private[spark] class CoordinateDescent2 extends CDOptimizer // with CoordinateDe
 @DeveloperApi
 object CoordinateDescent2 extends Logging {
 
-  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numLambdas: Int, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
+  def runCD(data: RDD[(DenseVector, DenseMatrix)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numLambdas: Int, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     logInfo(s"Performing coordinate descent with: [elasticNetParam: $alpha, lamShrnk: $lamShrnk, numLambdas: $numLambdas, maxIter: $maxIter, tol: $tol]")
 
     val lambdas = computeLambdas(xy, alpha, lamShrnk, numLambdas, numLambdas, numRows): Array[Double]
-    optimize(convertToMatrix(data), initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
+    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
   }
 
-  //  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numIterations: Int, tol: Double, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
-  //    val lambdas = computeLambdas(xy, alpha, lamShrnk, numIterations, lambdaIndex + 1, numRows): Array[Double]
-  //    optimize(convertToMatrix(data), initialWeights, xy, lambdas, alpha, lamShrnk, numIterations, tol, numFeatures, numRows).last._2
-  //  }
-
-  //TODO - Persistence needs to done from the LR for optimum
-  private def convertToMatrix(data: RDD[(Double, Vector)]): RDD[DenseMatrix] = {
-    val matrixRDD = RowPartionedTransformer.arrayToMatrix(data.map(row => row._2.toArray))
-      .persist(StorageLevel.MEMORY_AND_DISK)
-    logDebug(s"convertToMatrix() data: RDD[(Double, Vector)]: ${data.toDebugString}, matrixRDD: RDD[DenseMatrix]: ${matrixRDD.toDebugString}")
-    matrixRDD
-  }
-
-  private def optimize(data: RDD[DenseMatrix], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
-    //data.persist(StorageLevel.MEMORY_AND_DISK)
-    //logRDD("data before persist", data)
+  private def optimize(data: RDD[(DenseVector, DenseMatrix)], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     var totalNumNewBeta = 0
     val results = new MutableList[(Double, Vector)]
 
@@ -138,12 +108,13 @@ object CoordinateDescent2 extends Logging {
     }
   }
 
-  private def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
+  private def computeXY(data: RDD[(DenseVector, DenseMatrix)], numFeatures: Int, numRows: Long): Array[Double] = {
     val xy = data.treeAggregate(new InitLambda2(numFeatures))(
       (aggregate, row) => aggregate.compute(row),
       (aggregate1, aggregate2) => aggregate1.combine(aggregate2)).xy
 
-    xy.map(_ / numRows)
+    //xy.toArray.map(_ / numRows)
+    (xy.toBreeze / numRows.toDouble).toArray
   }
 
   private def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
@@ -171,7 +142,7 @@ object CoordinateDescent2 extends Logging {
     lambdas.toArray
   }
 
-  private def populateXXMatrix(data: RDD[DenseMatrix], newIndexes: Array[Int], xx: CDSparseMatrix2, numRows: Long): Unit = {
+  private def populateXXMatrix(data: RDD[(DenseVector, DenseMatrix)], newIndexes: Array[Int], xx: CDSparseMatrix2, numRows: Long): Unit = {
     Timer("xCorrelation").start
     val correlatedX = xCorrelation(data, newIndexes, xx.numFeatures, numRows)
     Timer("xCorrelation").end
@@ -180,7 +151,7 @@ object CoordinateDescent2 extends Logging {
     Timer("xx.update").end
   }
 
-  private def xCorrelation(data: RDD[DenseMatrix], newColIndexes: Array[Int], numFeatures: Int, numRows: Long): Matrix = {
+  private def xCorrelation(data: RDD[(DenseVector, DenseMatrix)], newColIndexes: Array[Int], numFeatures: Int, numRows: Long): Matrix = {
     val numNewBeta = newColIndexes.size
 
     val xx = data.treeAggregate(new XCorrelation2(newColIndexes, numFeatures))(
@@ -192,7 +163,7 @@ object CoordinateDescent2 extends Logging {
 
   private def S(z: Double, gamma: Double): Double = if (gamma >= abs(z)) 0.0 else (z / abs(z)) * (abs(z) - gamma)
 
-  private def cdIter(data: RDD[DenseMatrix], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix2, tol: Double, maxIter: Int, numRows: Long): (Vector, Int) = {
+  private def cdIter(data: RDD[(DenseVector, DenseMatrix)], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix2, tol: Double, maxIter: Int, numRows: Long): (Vector, Int) = {
     var numNewBeta = 0
     val ridgePenaltyShrinkage = 1 + newLambda * (1 - alpha)
     val gamma = newLambda * alpha
@@ -235,29 +206,27 @@ object CoordinateDescent2 extends Logging {
 
 private class InitLambda2(numFeatures: Int) extends Serializable {
 
-  lazy val xy: Array[Double] = Array.ofDim[Double](numFeatures)
+  var xy: DenseVector = _
 
-  def compute(row: (Double, Vector)): this.type = {
-    val loadedXY = xy
-    val y = row._1
-    val x = row._2.toArray
-    var j = 0
-    while (j < numFeatures) {
-      loadedXY(j) += x(j) * y
-      j += 1
-    }
+  def compute(row: (DenseVector, DenseMatrix)): this.type = {
+    assert(xy == null, "More than one matrix per partition")
+    xy = gemv(row._2.transpose, row._1)
     this
   }
 
   def combine(other: InitLambda2): this.type = {
-    val thisXX = xy
-    val otherXX = other.xy
-    var j = 0
-    while (j < numFeatures) {
-      thisXX(j) += otherXX(j)
-      j += 1
-    }
+    assert(xy != null, "Partition does not contain a matrix")
+    assert(other.xy != null, "Other Partition does not contain a matrix")
+    xy.toBreeze :+= other.xy.toBreeze
     this
+  }
+
+  private def gemv(
+    A: DenseMatrix,
+    x: DenseVector): DenseVector = {
+    val y = new DenseVector(new Array[Double](A.numRows))
+    BLAS.gemv(1.0, A, x, 1.0, y)
+    y
   }
 }
 
@@ -266,9 +235,9 @@ class XCorrelation2(newColIndexes: Array[Int], numFeatures: Int) extends Seriali
 
   var xx: DenseMatrix = _
 
-  def compute(row: DenseMatrix): this.type = {
+  def compute(row: (DenseVector, DenseMatrix)): this.type = {
     assert(xx == null, "More than one matrix per partition")
-    xx = computeJxK(row, newColIndexes)
+    xx = computeJxK(row._2, newColIndexes)
     this
   }
 

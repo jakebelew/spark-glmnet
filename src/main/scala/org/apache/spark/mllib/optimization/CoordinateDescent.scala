@@ -28,14 +28,12 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import breeze.linalg.{ Vector => BV }
 import nonsubmit.utils.Timer
-//import org.apache.spark.ml.regression.LinearRegressionWithCDParams
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.ml.param.ParamMap
 import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
 import org.apache.spark.ml.PredictorParams
 import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
 import org.apache.spark.ml.param.shared._
-//import org.apache.spark.ml.regression.tempSharedParams
 
 /**
  * Params for coordinate descent.
@@ -101,7 +99,7 @@ private[spark] trait CoordinateDescentParams {
  * Class used to solve an optimization problem using Coordinate Descent.
  */
 //TODO - Faster version in the works
-private[spark] class CoordinateDescent extends CDOptimizer //with CoordinateDescentParams
+private[spark] class CoordinateDescent extends CoordinateDescentParams
   with Logging {
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
@@ -116,20 +114,6 @@ private[spark] class CoordinateDescent extends CDOptimizer //with CoordinateDesc
       tol,
       numFeatures, numRows)
   }
-
-//  def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
-//    logInfo(s"CoordinateDescent_params logSaveAll: $logSaveAll")
-//    CoordinateDescent.runCD(
-//      data,
-//      initialWeights,
-//      xy,
-//      elasticNetParam,
-//      lambdaShrink,
-//      maxIter,
-//      tol,
-//      lambdaIndex,
-//      numFeatures, numRows)
-//  }
 
   //TODO - Temporary to allow testing multiple versions of CoordinateDescent with minimum code duplication - remove to Object method only later
   def computeXY(data: RDD[(Double, Vector)], numFeatures: Int, numRows: Long): Array[Double] = {
@@ -150,17 +134,6 @@ object CoordinateDescent extends Logging {
     val lambdas = computeLambdas(xy, alpha, lamShrnk, numLambdas, numLambdas, numRows): Array[Double]
     optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
   }
-
-//  def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, maxIter: Int, tol: Double, lambdaIndex: Int, numFeatures: Int, numRows: Long): Vector = {
-//
-//    logInfo(s"CoordinateDescent_params elasticNetParam: $alpha")
-//    logInfo(s"CoordinateDescent_params lamShrnk: $lamShrnk")
-//    logInfo(s"CoordinateDescent_params maxIter: $maxIter")
-//    logInfo(s"CoordinateDescent_params tol: $tol")
-//
-//    val lambdas = computeLambdas(xy, alpha, lamShrnk, maxIter, lambdaIndex + 1, numRows): Array[Double]
-//    optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows).last._2
-//  }
 
   private def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], lambdas: Array[Double], alpha: Double, lamShrnk: Double, maxIter: Int, tol: Double, numFeatures: Int, numRows: Long): List[(Double, Vector)] = {
     //data.persist(StorageLevel.MEMORY_AND_DISK)
