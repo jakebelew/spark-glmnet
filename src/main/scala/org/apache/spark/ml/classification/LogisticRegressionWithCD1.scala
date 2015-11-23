@@ -17,24 +17,24 @@
 
 package org.apache.spark.ml.classification
 
-import org.apache.spark.mllib.feature.{ StandardScaler, StandardScalerModel }
-import org.apache.spark.Logging
 import org.apache.spark.annotation.Experimental
+import org.apache.spark.Logging
 import org.apache.spark.ml.PredictorParams
 import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
 import org.apache.spark.ml.param.shared._
+import org.apache.spark.ml.regression.{ HasOptimizerVersion, HasLambdaIndex, HasLambdaShrink, HasNumLambdas, Regressor, RegressionModel }
 import org.apache.spark.ml.util.Identifiable
+import org.apache.spark.mllib.feature.{ StandardScaler, StandardScalerModel }
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.BLAS._
+import org.apache.spark.mllib.optimization.{ CoordinateDescentParams, LogisticCoordinateDescent1 }
 import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer_Modified
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ DataFrame, Row }
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.util.StatCounter
 import scala.collection.mutable.MutableList
-import org.apache.spark.mllib.optimization.{ CoordinateDescent, CoordinateDescentParams }
-import org.apache.spark.ml.regression.{ HasOptimizerVersion, HasLambdaIndex, HasLambdaShrink, HasNumLambdas }
-import org.apache.spark.ml.regression.Regressor
-import org.apache.spark.ml.regression.RegressionModel
 
 //Modifed from org.apache.spark.ml.regression.LinearRegression
 
@@ -128,9 +128,9 @@ class LogisticRegressionWithCD1(override val uid: String)
     fit(dataset, fitSingleModel)(0)
   }
 
-  private def newOptimizer = new CoordinateDescent()
+  private def newOptimizer = new LogisticCoordinateDescent1()
 
-  private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
+  private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats3, paramMaps: Array[ParamMap]) => {
     val boundaryIndices = new Range(0, paramMaps.length, $(numLambdas))
     val models = new MutableList[LogisticRegressionWithCDModel]
 
@@ -139,7 +139,7 @@ class LogisticRegressionWithCD1(override val uid: String)
       copyValues(optimizer)
       copyValues(optimizer, paramMaps(index))
 
-      val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows).unzip
+      val (lambdas, rawWeights) = optimizer.optimize(normalizedInstances, initialWeights, xy, stats, numRows).unzip
       //rawWeights.foreach { rw => logDebug(s"Raw Weights ${rw.toArray.mkString(",")}") }
 
       models ++= rawWeights.map(rw => createModel(rw.toArray, stats))
@@ -148,27 +148,24 @@ class LogisticRegressionWithCD1(override val uid: String)
     models
   }
 
-  private val fitSingleModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap]) => {
+  private val fitSingleModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats3, paramMaps: Array[ParamMap]) => {
     val optimizer = newOptimizer
     copyValues(optimizer)
 
     logDebug(s"Best fit lambda index: ${$(lambdaIndex)}")
     //val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, $(lambdaIndex), stats.numFeatures, numRows).toArray
-    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, stats.numFeatures, numRows)($(lambdaIndex))._2.toArray
+    val rawWeights = optimizer.optimize(normalizedInstances, initialWeights, xy, stats, numRows)($(lambdaIndex))._2.toArray
     val model = createModel(rawWeights, stats)
     Seq(model)
   }
 
   // f: (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap])
-  private def fit(dataset: DataFrame, f: (RDD[(Double, Vector)], Vector, Array[Double], Long, Stats, Array[ParamMap]) => Seq[LogisticRegressionWithCDModel], paramMaps: Array[ParamMap] = Array()): Seq[LogisticRegressionWithCDModel] = {
+  private def fit(dataset: DataFrame, f: (RDD[(Double, Vector)], Vector, Array[Double], Long, Stats3, Array[ParamMap]) => Seq[LogisticRegressionWithCDModel], paramMaps: Array[ParamMap] = Array()): Seq[LogisticRegressionWithCDModel] = {
     // paramMaps.map(fit(dataset, _))
 
-    val (normalizedInstances, scalerModel) = normalizeDataSet(dataset)
+    val (normalizedInstances, stats) = normalizeDataSet(dataset)
     val handlePersistence = dataset.rdd.getStorageLevel == StorageLevel.NONE
     if (handlePersistence) normalizedInstances.persist(StorageLevel.MEMORY_AND_DISK)
-
-    val stats = Stats(scalerModel)
-    //logDebug(s"stats:\nnumFeatures: ${stats.numFeatures}\nyMean: ${stats.yMean}\nStd: ${stats.yStd}\nfeaturesMean: ${stats.featuresMean.mkString(",")}\nfeaturesStd: ${stats.featuresStd.mkString(",")}")
 
     // If the yStd is zero, then the intercept is yMean with zero weights;
     // as a result, training is not needed.
@@ -190,27 +187,33 @@ class LogisticRegressionWithCD1(override val uid: String)
     models
   }
 
-  case class Stats(scalerModel: StandardScalerModel) {
-    val numFeatures = scalerModel.mean.size - 1
-    val yMean = scalerModel.mean.toArray(0)
-    val yStd = scalerModel.std.toArray(0)
-    lazy val featuresMean = scalerModel.mean.toArray.drop(1)
-    lazy val featuresStd = scalerModel.std.toArray.drop(1)
-  }
-
-  private def normalizeDataSet(dataset: DataFrame): (RDD[(Double, Vector)], StandardScalerModel) = {
+  private def normalizeDataSet(dataset: DataFrame): (RDD[(Double, Vector)], Stats3) = {
     val instances = extractLabeledPoints(dataset).map {
-      case LabeledPoint(label: Double, features: Vector) => Vectors.dense(label +: features.toArray)
+      case LabeledPoint(label: Double, features: Vector) => (label, features)
     }
 
-    val scalerModel = new StandardScaler(withMean = true, withStd = true)
-      .fit(instances)
+    // Calculate statistics but do not normalize labels
+    val (summarizer, statCounter) = instances.treeAggregate(
+      (new MultivariateOnlineSummarizer_Modified, new StatCounter))(
+        seqOp = (c, v) => (c, v) match {
+          case ((summarizer: MultivariateOnlineSummarizer_Modified, statCounter: StatCounter),
+            (label: Double, features: Vector)) =>
+            (summarizer.add(features), statCounter.merge(label))
+        },
+        combOp = (c1, c2) => (c1, c2) match {
+          case ((summarizer1: MultivariateOnlineSummarizer_Modified, statCounter1: StatCounter),
+            (summarizer2: MultivariateOnlineSummarizer_Modified, statCounter2: StatCounter)) =>
+            (summarizer1.merge(summarizer2), statCounter1.merge(statCounter2))
+        })
 
-    val normalizedInstances = scalerModel
-      .transform(instances)
-      .map(row => (row.toArray.take(1)(0), Vectors.dense(row.toArray.drop(1))))
+    val stats = Stats3(summarizer, statCounter)
 
-    (normalizedInstances, scalerModel)
+    val scalerModel = new StandardScalerModel(stats.featuresStd, stats.featuresMean, true, true)
+
+    val normalizedInstances = instances
+      .map { case (label, features) => (label, scalerModel.transform(features)) }
+
+    (normalizedInstances, stats)
   }
 
   protected[classification] def createModelsWithInterceptAndWeightsOfZeros(dataset: DataFrame, yMean: Double, numFeatures: Int): Seq[LogisticRegressionWithCDModel] = {
@@ -231,7 +234,7 @@ class LogisticRegressionWithCD1(override val uid: String)
     Seq(copyValues(model))
   }
 
-  protected[classification] def createModel(rawWeights: Array[Double], stats: Stats): LogisticRegressionWithCDModel = {
+  protected[classification] def createModel(rawWeights: Array[Double], stats: Stats3): LogisticRegressionWithCDModel = {
     /* The weights are trained in the scaled space; we're converting them back to the original space. */
     val weights = {
       var i = 0
@@ -250,7 +253,7 @@ class LogisticRegressionWithCD1(override val uid: String)
        http://stats.stackexchange.com/questions/13617/how-is-the-intercept-computed-in-glmnet
      */
     //val intercept = if ($(fitIntercept)) yMean - dot(weights, Vectors.dense(featuresMean)) else 0.0
-    val intercept = stats.yMean - dot(weights, Vectors.dense(stats.featuresMean))
+    val intercept = stats.yMean - dot(weights, stats.featuresMean)
 
     val model = copyValues(new LogisticRegressionWithCDModel(uid, weights, intercept))
     //    val trainingSummary = new LogisticRegressionTrainingSummary(
@@ -294,6 +297,15 @@ class LogisticRegressionWithCD1(override val uid: String)
   }
 
   override def copy(extra: ParamMap): LogisticRegressionWithCD1 = defaultCopy(extra)
+}
+
+case class Stats3(summarizer: MultivariateOnlineSummarizer_Modified, statCounter: StatCounter) {
+  val numRows = statCounter.count
+  val numFeatures = summarizer.mean.size
+  val yMean = statCounter.mean
+  val yStd = statCounter.sampleStdev
+  val featuresMean = summarizer.mean
+  val featuresStd = Vectors.dense(summarizer.variance.toArray.map(math.sqrt))
 }
 
 /**
