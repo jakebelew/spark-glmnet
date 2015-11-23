@@ -237,10 +237,11 @@ class LogisticRegressionWithCD1(override val uid: String)
   protected[classification] def createModel(rawWeights: Array[Double], stats: Stats3): LogisticRegressionWithCDModel = {
     /* The weights are trained in the scaled space; we're converting them back to the original space. */
     val weights = {
+      //TODO - Logistic coordinate descent has added beta0 (the intercept) to the rawWeights. Is this correct? 
       var i = 0
-      val len = rawWeights.length
+      val len = rawWeights.length - 1
       while (i < len) {
-        rawWeights(i) *= { if (stats.featuresStd(i) != 0.0) stats.yStd / stats.featuresStd(i) else 0.0 }
+        rawWeights(i + 1) *= { if (stats.featuresStd(i) != 0.0) stats.yStd / stats.featuresStd(i) else 0.0 }
         i += 1
       }
       Vectors.dense(rawWeights).compressed
@@ -252,9 +253,10 @@ class LogisticRegressionWithCD1(override val uid: String)
        converged. See the following discussion for detail.
        http://stats.stackexchange.com/questions/13617/how-is-the-intercept-computed-in-glmnet
      */
+    //TODO - Logistic coordinate descent has added beta0 (the intercept) to the rawWeights. Is this correct? 
     //val intercept = if ($(fitIntercept)) yMean - dot(weights, Vectors.dense(featuresMean)) else 0.0
-    val intercept = stats.yMean - dot(weights, stats.featuresMean)
-
+    //val intercept = stats.yMean - dot(weights, stats.featuresMean)
+    val intercept = rawWeights(0)
     val model = copyValues(new LogisticRegressionWithCDModel(uid, weights, intercept))
     //    val trainingSummary = new LogisticRegressionTrainingSummary(
     //      model.transform(dataset),
