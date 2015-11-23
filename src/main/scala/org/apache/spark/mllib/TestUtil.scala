@@ -4,21 +4,24 @@ import scala.math.abs
 
 object TestUtil {
 
-  def equalWithinTolerance(actual: Array[Array[Double]], expected: Array[Array[Double]], tolerance: Double): Unit = {
+  def equalWithinTolerance(actual: Array[Array[Double]], expected: Array[Array[Double]], tolerance: Double, testName: String): Unit = {
     actual.zip(expected).foreach {
-      case (a, e) => equalWithinTolerance(a, e, tolerance)
+      case (a, e) => equalWithinTolerance(a, e, tolerance, testName)
     }
   }
 
-  def equalWithinTolerance(actual: Array[Double], expected: Array[Double], tolerance: Double): Unit = {
+  def equalWithinTolerance(actual: Array[Double], expected: Array[Double], tolerance: Double, testName: String): Unit = {
     actual.zip(expected).foreach {
-      case (a, e) =>
-        if (abs(e - a) > tolerance)
-          throw new Exception(s"The difference between the expected [$e] and actual [$a] value is not within the tolerance of [$tolerance]")
+      case (a, e) => equalWithinTolerance(a, e, tolerance, testName)
     }
   }
 
-  def equal(actual: Array[String], expected: Array[String]): Unit = {
+  def equalWithinTolerance(actual: Double, expected: Double, tolerance: Double, testName: String): Unit = {
+    if (abs(expected - actual) > tolerance)
+      throw new Exception(s"$testName: The difference between the expected [$expected] and actual [$actual] value is not within the tolerance of [$tolerance]")
+  }
+
+  def equal(actual: Array[String], expected: Array[String], testName: String): Unit = {
     actual.zip(expected).foreach {
       case (a, e) =>
         if (a != e)

@@ -67,7 +67,7 @@ object LogisticRegressionPythonToScala extends App {
     xMeans += mean
     val colDiff = for (j <- 0 until nrow) yield (xNum(j)(i) - mean)
     val sumSq = (for (i <- 0 until nrow) yield (colDiff(i) * colDiff(i))).sum
-    val stdDev = sqrt(sumSq / nrow)
+    val stdDev = sqrt(sumSq / (nrow - 1))
     xSD += stdDev
   }
 
@@ -80,7 +80,7 @@ object LogisticRegressionPythonToScala extends App {
 
   //Do Not Normalize labels but do calculate averages
   val meanLabel = labels.sum / nrow
-  val sdLabel = sqrt((for (i <- 0 until nrow) yield ((labels(i) - meanLabel) * (labels(i) - meanLabel))).sum / nrow)
+  val sdLabel = sqrt((for (i <- 0 until nrow) yield ((labels(i) - meanLabel) * (labels(i) - meanLabel))).sum / (nrow - 1))
 
   //initialize probabilities and weights
   var sumWxr = Array.ofDim[Double](ncol)
@@ -236,17 +236,35 @@ object LogisticRegressionPythonToScala extends App {
   verifyResults()
 
   def verifyResults() = {
-    val expectedBetaMat = FileUtil.readFile("results/logistic-regression/betaMat.txt")
+
+    val tolerance = 1e-14
+    val yTolerance = 1e-12
+
+    val expectedXmeans = FileUtil.readFile("results/logistic-regression/xMeans.txt")(0)
+      .split(",").map(_.toDouble).toArray
+    TestUtil.equalWithinTolerance(xMeans.toArray, expectedXmeans, tolerance, "xMeans")
+
+    val expectedXSD = FileUtil.readFile("results/logistic-regression/xSDwithBesselsCorrection.txt")(0)
+      .split(",").map(_.toDouble).toArray
+    TestUtil.equalWithinTolerance(xSD.toArray, expectedXSD, tolerance, "xSD")
+
+    val expectedYmean = FileUtil.readFile("results/logistic-regression/yMean.txt")(0).toDouble
+    TestUtil.equalWithinTolerance(meanLabel, expectedYmean, yTolerance, "yMean")
+
+    val expectedYSD = FileUtil.readFile("results/logistic-regression/ySDwithBesselsCorrection.txt")(0).toDouble
+    TestUtil.equalWithinTolerance(sdLabel, expectedYSD, yTolerance, "ySD")
+
+    val expectedBetaMat = FileUtil.readFile("results/logistic-regression/betaMatWithBesselsCorrection.txt")
       .map(_.split(",").map(_.toDouble)).toArray
-    TestUtil.equalWithinTolerance(betaMat.toArray, expectedBetaMat, 1e-12)
+    TestUtil.equalWithinTolerance(betaMat.toArray, expectedBetaMat, tolerance, "betas")
 
     val expectedBeta0List = FileUtil.readFile("results/logistic-regression/beta0List.txt")(0)
       .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(beta0List.toArray, expectedBeta0List, 1e-12)
+    TestUtil.equalWithinTolerance(beta0List.toArray, expectedBeta0List, tolerance, "beta0s")
 
     val expectedNamelist = FileUtil.readFile("results/logistic-regression/namelist.txt")(0)
       .split(",").map(_.trim).toArray
-    TestUtil.equal(nameList.toArray, expectedNamelist)
+    TestUtil.equal(nameList.toArray, expectedNamelist, "columnOrder")
   }
 }
 

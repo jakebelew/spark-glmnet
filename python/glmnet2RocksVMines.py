@@ -64,7 +64,7 @@ for i in range(ncol):
     xMeans.append(mean)
     colDiff = [(xNum[j][i] - mean) for j in range(nrow)]
     sumSq = sum([colDiff[i] * colDiff[i] for i in range(nrow)])
-    stdDev = sqrt(sumSq/nrow)
+    stdDev = sqrt(sumSq/(nrow - 1))
     xSD.append(stdDev)
 
 #use calculate mean and standard deviation to normalize xNum
@@ -75,7 +75,7 @@ for i in range(nrow):
 
 #Do Not Normalize labels but do calculate averages
 meanLabel = sum(labels)/nrow
-sdLabel = sqrt(sum([(labels[i] - meanLabel) * (labels[i] - meanLabel) for i in range(nrow)])/nrow)
+sdLabel = sqrt(sum([(labels[i] - meanLabel) * (labels[i] - meanLabel) for i in range(nrow)])/(nrow - 1))
 
 #initialize probabilities and weights
 sumWxr = [0.0] * ncol
