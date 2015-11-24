@@ -27,7 +27,7 @@ import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.mllib.feature.{ StandardScaler, StandardScalerModel }
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.BLAS._
-import org.apache.spark.mllib.optimization.{ CoordinateDescentParams, LogisticCoordinateDescent1 }
+import org.apache.spark.mllib.optimization.{ CoordinateDescentParams, LogisticCoordinateDescent2 => CD }
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer_Modified
 import org.apache.spark.rdd.RDD
@@ -128,7 +128,7 @@ class LogisticRegressionWithCD1(override val uid: String)
     fit(dataset, fitSingleModel)(0)
   }
 
-  private def newOptimizer = new LogisticCoordinateDescent1()
+  private def newOptimizer = new CD
 
   private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats3, paramMaps: Array[ParamMap]) => {
     val boundaryIndices = new Range(0, paramMaps.length, $(numLambdas))

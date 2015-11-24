@@ -13,6 +13,7 @@ private[spark] class LogisticCoordinateDescent2 extends CoordinateDescentParams
   with Logging {
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], stats: Stats3, numRows: Long): List[(Double, Vector)] = {
+    println("\nExecuting LogisticCoordinateDescent2\n")
     LogisticCoordinateDescent2.runCD(
       data,
       initialWeights,
@@ -43,14 +44,21 @@ object LogisticCoordinateDescent2 extends Logging {
   def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numLambdas: Int, maxIter: Int, tol: Double, stats: Stats3, numRows: Long): List[(Double, Vector)] = {
     logInfo(s"Performing coordinate descent with: [elasticNetParam: $alpha, lamShrnk: $lamShrnk, numLambdas: $numLambdas, maxIter: $maxIter, tol: $tol]")
 
-    // val lambdas = computeLambdas(xy, alpha, lamShrnk, numLambdas, numLambdas, numRows): Array[Double]
+    val (labelsSeq, xNormalizedSeq) = data.toArray.unzip
+    val labels = labelsSeq.toArray
+    val xNormalized = xNormalizedSeq.map(_.toArray).toArray
+    val lamMult = 0.93
+    //val alpha = 1.0
+
+    val (lambdas, initialBeta0) = computeLambdasAndInitialBeta0(labels, xNormalized, alpha, lamMult, numLambdas, stats, numRows)
     // optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
-    runScala(data, stats, numRows)
+    optimize(labels, xNormalized, lambdas, initialBeta0, alpha, stats, numRows)
     //Array.fill[(Double, Vector)](numLambdas)((0.0, Vectors.zeros(stats.numFeatures))).toList
   }
 
   //private def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
-  private def computeLambdas(lamdaInit: Double, lambdaMult: Double, numLambdas: Int): Array[Double] = {
+  //private def computeLambdasAndInitialBeta0(lamdaInit: Double, lambdaMult: Double, numLambdas: Int, stats: Stats3, numRows: Long): Array[Double] = {
+  private def computeLambdasAndInitialBeta0(labels: Array[Double], xNormalized: Array[Array[Double]], alpha: Double, lambdaMult: Double, numLambdas: Int, stats: Stats3, numRows: Long): (Array[Double], Double) = {
     //logDebug(s"alpha: $alpha, lamShrnk: $lamShrnk, maxIter: $lambdaRange, numRows: $numRows")
 
     //    val maxXY = xy.map(abs).max(Ordering.Double)
@@ -59,53 +67,10 @@ object LogisticCoordinateDescent2 extends Logging {
     //    val lambdaMult = exp(scala.math.log(lamShrnk) / lambdaRange)
     //    
     //---------------------------------------------------------------------------------------------------
-    //initialize probabilities and weights
-//    var sumWxr = Array.ofDim[Double](ncol)
-//    var sumWxx = Array.ofDim[Double](ncol)
-//    var sumWr = 0.0
-//    var sumW = 0.0
-//
-//    //calculate starting points for betas
-//    for (iRow <- 0 until nrow) {
-//      val p = meanLabel
-//      val w = p * (1.0 - p)
-//      //residual for logistic
-//      val r = (labels(iRow) - p) / w
-//      val x = xNormalized(iRow)
-//      sumWxr = (for (i <- 0 until ncol) yield (sumWxr(i) + w * x(i) * r)).toArray
-//      sumWxx = (for (i <- 0 until ncol) yield (sumWxx(i) + w * x(i) * x(i))).toArray
-//      sumWr = sumWr + w * r
-//      sumW = sumW + w
-//    }
-//    val avgWxr = for (i <- 0 until ncol) yield sumWxr(i) / nrow
-//    val avgWxx = for (i <- 0 until ncol) yield sumWxx(i) / nrow
-//
-//    var maxWxr = 0.0
-//    for (i <- 0 until ncol) {
-//      val value = abs(avgWxr(i))
-//      maxWxr = if (value > maxWxr) value else maxWxr
-//    }
-//    //calculate starting value for lambda
-//    var lam = maxWxr / alpha
-    
-    //TODO - The following Array.iterate method can be used in the other CoordinateDescent objects to replace 13 lines of code with 1 line
-    Array.iterate[Double](lamdaInit * lambdaMult, numLambdas)(_ * lambdaMult)
-  }
-
-  private def runScala(data: RDD[(Double, Vector)], stats: Stats3, numRows: Long): List[(Double, Vector)] = {
-    val (labelsSeq, xNormalizedSeq) = data.toArray.unzip
-    val labels = labelsSeq.toArray
-    val xNormalized = xNormalizedSeq.map(_.toArray).toArray
-
     //number of rows and columns in x matrix
     val nrow = numRows.toInt
     val ncol = stats.numFeatures
-
-    val alpha = 1.0
-
-    //Do Not Normalize labels but do calculate averages
     val meanLabel = stats.yMean
-    val sdLabel = stats.yStd
 
     //initialize probabilities and weights
     var sumWxr = Array.ofDim[Double](ncol)
@@ -134,12 +99,29 @@ object LogisticCoordinateDescent2 extends Logging {
       maxWxr = if (value > maxWxr) value else maxWxr
     }
     //calculate starting value for lambda
-    var lam = maxWxr / alpha
+    var lamdaInit = maxWxr / alpha
 
     //this value of lambda corresponds to beta = list of 0's
     //initialize a vector of coefficients beta
-    var beta = Array.ofDim[Double](ncol)
+    //var beta = Array.ofDim[Double](ncol)
     var beta0 = sumWr / sumW
+
+    //TODO - The following Array.iterate method can be used in the other CoordinateDescent objects to replace 13 lines of code with 1 line
+    val lambdas = Array.iterate[Double](lamdaInit * lambdaMult, numLambdas)(_ * lambdaMult)
+    (lambdas, beta0)
+  }
+
+  //private def runScala(data: RDD[(Double, Vector)], stats: Stats3, numRows: Long): List[(Double, Vector)] = {
+  private def optimize(labels: Array[Double], xNormalized: Array[Array[Double]], lambdas: Array[Double], initialBeta0: Double, alpha: Double, stats: Stats3, numRows: Long): List[(Double, Vector)] = {
+
+    //number of rows and columns in x matrix
+    val nrow = numRows.toInt
+    val ncol = stats.numFeatures
+
+    //initial value of lambda corresponds to beta = list of 0's
+    //initialize a vector of coefficients beta
+    var beta = Array.ofDim[Double](ncol)
+    var beta0 = initialBeta0
 
     //initialize matrix of betas at each step
     val betaMat = MutableList.empty[Array[Double]]
@@ -151,6 +133,7 @@ object LogisticCoordinateDescent2 extends Logging {
     //begin iteration
     val nSteps = 100
     val lamMult = 0.93 //100 steps gives reduction by factor of 1000 in lambda (recommended by authors)
+    var lam = lambdas(0) / lamMult
     val nzList = MutableList.empty[Int]
     for (iStep <- 0 until nSteps) {
       //decrease lambda
@@ -184,6 +167,8 @@ object LogisticCoordinateDescent2 extends Logging {
           //cycle through attributes and update one-at-a-time
           //record starting value for comparison
           val betaStart = betaInner.clone
+          var sumWr = 0.0
+          var sumW = 0.0
           for (iCol <- 0 until ncol) {
             var sumWxrC = 0.0
             var sumWxxC = 0.0
@@ -249,11 +234,10 @@ object LogisticCoordinateDescent2 extends Logging {
 
     println(nameList)
 
-    //verifyResults(stats, meanLabel, sdLabel, betaMat, beta0List, nameList)
+    //verifyResults(stats, stats.yMean, stats.yStd, betaMat, beta0List, nameList)
 
-    //TODO - Return actual lambdas once they are supplied as a list. Also return the column order and put that into the model as part of the history.
+    //TODO - Return the column order and put that into the model as part of the history.
     val fullBetas = beta0List.zip(betaMat).map { case (b0, beta) => Vectors.dense(b0 +: beta) }
-    val lambdas = Array.ofDim[Double](fullBetas.size)
     lambdas.zip(fullBetas).toList
   }
 
@@ -273,7 +257,6 @@ object LogisticCoordinateDescent2 extends Logging {
   }
 
   def verifyResults(stats: Stats3, meanLabel: Double, sdLabel: Double, betaMat: MutableList[Array[Double]], beta0List: MutableList[Double], nameList: IndexedSeq[String]) = {
-
     // Sometimes passes 1e-14, sometimes doesn't
     //val tolerance = 1e-14
     val tolerance = 1e-12
@@ -304,5 +287,7 @@ object LogisticCoordinateDescent2 extends Logging {
     val expectedNamelist = FileUtil.readFile("results/logistic-regression/namelist.txt")(0)
       .split(",").map(_.trim).toArray
     TestUtil.equal(nameList.toArray, expectedNamelist, "columnOrder")
+
+    println("\nResults Verified\n")
   }
 }
