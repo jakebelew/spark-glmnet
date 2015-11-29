@@ -8,6 +8,7 @@ import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.rdd.RDD
 import scala.collection.mutable.MutableList
 import scala.math.{ abs, exp, sqrt }
+import scala.annotation.tailrec
 
 private[spark] class LogisticCoordinateDescent2 extends CoordinateDescentParams
   with Logging {
@@ -53,7 +54,6 @@ object LogisticCoordinateDescent2 extends Logging {
     val (lambdas, initialBeta0) = computeLambdasAndInitialBeta0(labels, xNormalized, alpha, lamMult, numLambdas, stats, numRows)
     // optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
     optimize(labels, xNormalized, lambdas, initialBeta0, alpha, stats, numRows)
-    //Array.fill[(Double, Vector)](numLambdas)((0.0, Vectors.zeros(stats.numFeatures))).toList
   }
 
   //private def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
@@ -131,100 +131,28 @@ object LogisticCoordinateDescent2 extends Logging {
     beta0List += beta0
 
     //begin iteration
-    val nSteps = 100
-    val lamMult = 0.93 //100 steps gives reduction by factor of 1000 in lambda (recommended by authors)
-    var lam = lambdas(0) / lamMult
+    //    val nSteps = 100
+    //    val lamMult = 0.93 //100 steps gives reduction by factor of 1000 in lambda (recommended by authors)
+    //    var lam = lambdas(0) / lamMult
     val nzList = MutableList.empty[Int]
-    for (iStep <- 0 until nSteps) {
-      //decrease lambda
-      lam = lam * lamMult
 
-      //Use incremental change in betas to control inner iteration
+    loop(beta, beta0, 0)
 
-      //set middle loop values for betas = to outer values
-      // values are used for calculating weights and probabilities
-      //inner values are used for calculating penalized regression updates
-
-      //take pass through data to calculate averages over data require for iteration
-      //initilize accumulators
-
-      var betaIRLS = beta.clone
-      val beta0IRLS = beta0
-      var distIRLS = 100.0
-      //Middle loop to calculate new betas with fixed IRLS weights and probabilities
-      var iterIRLS = 0
-      while (distIRLS > 0.01) {
-        iterIRLS += 1
-        var iterInner = 0.0
-
-        val betaInner = betaIRLS.clone
-        var beta0Inner = beta0IRLS
-        var distInner = 100.0
-        while (distInner > 0.01 && iterInner < 100) {
-          iterInner += 1
-          //if (iterInner > 100) break
-
-          //cycle through attributes and update one-at-a-time
-          //record starting value for comparison
-          val betaStart = betaInner.clone
-          var sumWr = 0.0
-          var sumW = 0.0
-          for (iCol <- 0 until ncol) {
-            var sumWxrC = 0.0
-            var sumWxxC = 0.0
-            sumWr = 0.0
-            sumW = 0.0
-
-            for (iRow <- 0 until nrow) {
-              val x = xNormalized(iRow).clone
-              val y = labels(iRow)
-              val pr = Pr(beta0IRLS, betaIRLS, x)
-              val (p, w) = if (abs(pr) < 1e-5) (0.0, 1e-5)
-              else if (abs(1.0 - pr) < 1e-5) (1.0, 1e-5)
-              else (pr, pr * (1.0 - pr))
-              val z = (y - p) / w + beta0IRLS + (for (i <- 0 until ncol) yield (x(i) * betaIRLS(i))).sum
-              val r = z - beta0Inner - (for (i <- 0 until ncol) yield (x(i) * betaInner(i))).sum
-              sumWxrC += w * x(iCol) * r
-              sumWxxC += w * x(iCol) * x(iCol)
-              sumWr += w * r
-              sumW += w
-            }
-            val avgWxr = sumWxrC / nrow
-            val avgWxx = sumWxxC / nrow
-
-            beta0Inner = beta0Inner + sumWr / sumW
-            val uncBeta = avgWxr + avgWxx * betaInner(iCol)
-            betaInner(iCol) = S(uncBeta, lam * alpha) / (avgWxx + lam * (1.0 - alpha))
+    /*loop to decrement lambda and perform iteration for betas*/
+    @tailrec //def loop(oldBeta: Vector, n: Int): Unit = {
+    def loop(oldBeta: Array[Double], oldBeta0: Double, n: Int): Unit = {
+      if (n < lambdas.length) {
+        val newLambda = lambdas(n)
+        val (newBeta, newBeta0, nzBeta) = outerLoop(n + 1, labels, xNormalized, oldBeta, oldBeta0, newLambda, alpha, stats.numFeatures, numRows)
+        betaMat += newBeta.clone
+        beta0List += newBeta0
+        //val nzBeta = for (index <- 0 until ncol if beta(index) != 0.0) yield index
+        for (q <- nzBeta) {
+          if (!nzList.contains(q)) {
+            nzList += q
           }
-          val sumDiff = (for (n <- 0 until ncol) yield (abs(betaInner(n) - betaStart(n)))).sum
-          val sumBeta = (for (n <- 0 until ncol) yield abs(betaInner(n))).sum
-          distInner = sumDiff / sumBeta
         }
-
-        println(iStep, iterIRLS, iterInner)
-
-        //if exit inner while loop, then set betaMiddle = betaMiddle and run through middle loop again.
-
-        //Check change in betaMiddle to see if IRLS is converged
-        val a = (for (i <- 0 until ncol) yield (abs(betaIRLS(i) - betaInner(i)))).sum
-        val b = (for (i <- 0 until ncol) yield abs(betaIRLS(i))).sum
-        distIRLS = a / (b + 0.0001)
-        val dBeta = for (i <- 0 until ncol) yield (betaInner(i) - betaIRLS(i))
-        val gradStep = 1.0
-        val temp = for (i <- 0 until ncol) yield (betaIRLS(i) + gradStep * dBeta(i))
-        betaIRLS = temp.toArray.clone
-      }
-
-      beta = betaIRLS.clone
-      beta0 = beta0IRLS
-      betaMat += beta.clone
-      beta0List += beta0
-
-      val nzBeta = for (index <- 0 until ncol if beta(index) != 0.0) yield index
-      for (q <- nzBeta) {
-        if (!nzList.contains(q)) {
-          nzList += q
-        }
+        loop(newBeta, newBeta0, n + 1)
       }
     }
 
@@ -239,6 +167,109 @@ object LogisticCoordinateDescent2 extends Logging {
     //TODO - Return the column order and put that into the model as part of the history.
     val fullBetas = beta0List.zip(betaMat).map { case (b0, beta) => Vectors.dense(b0 +: beta) }
     lambdas.zip(fullBetas).toList
+  }
+
+  //private def cdIter(data: RDD[(Double, Vector)], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix, tol: Double, maxIter: Int, numFeatures: Int, numRows: Long): (Vector, Int) = {
+  private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], oldBeta0: Double, newLambda: Double, alpha: Double, numFeatures: Int, numRows: Long): (Array[Double], Double, Array[Int]) = {
+    //    for (iStep <- 0 until nSteps) {
+    //decrease lambda
+    //lam = lam * lamMult
+    val lam = newLambda
+    var beta = oldBeta
+    var beta0 = oldBeta0
+    val ncol = numFeatures
+    val nrow = numRows.toInt
+
+    //Use incremental change in betas to control inner iteration
+
+    //set middle loop values for betas = to outer values
+    // values are used for calculating weights and probabilities
+    //inner values are used for calculating penalized regression updates
+
+    //take pass through data to calculate averages over data require for iteration
+    //initilize accumulators
+
+    var betaIRLS = beta.clone
+    val beta0IRLS = beta0
+    var distIRLS = 100.0
+    //Middle loop to calculate new betas with fixed IRLS weights and probabilities
+    var iterIRLS = 0
+    while (distIRLS > 0.01) {
+      iterIRLS += 1
+      var iterInner = 0.0
+
+      val betaInner = betaIRLS.clone
+      var beta0Inner = beta0IRLS
+      var distInner = 100.0
+      while (distInner > 0.01 && iterInner < 100) {
+        iterInner += 1
+        //if (iterInner > 100) break
+
+        //cycle through attributes and update one-at-a-time
+        //record starting value for comparison
+        val betaStart = betaInner.clone
+        var sumWr = 0.0
+        var sumW = 0.0
+        for (iCol <- 0 until ncol) {
+          var sumWxrC = 0.0
+          var sumWxxC = 0.0
+          sumWr = 0.0
+          sumW = 0.0
+
+          for (iRow <- 0 until nrow) {
+            val x = xNormalized(iRow).clone
+            val y = labels(iRow)
+            val pr = Pr(beta0IRLS, betaIRLS, x)
+            val (p, w) = if (abs(pr) < 1e-5) (0.0, 1e-5)
+            else if (abs(1.0 - pr) < 1e-5) (1.0, 1e-5)
+            else (pr, pr * (1.0 - pr))
+            val z = (y - p) / w + beta0IRLS + (for (i <- 0 until ncol) yield (x(i) * betaIRLS(i))).sum
+            val r = z - beta0Inner - (for (i <- 0 until ncol) yield (x(i) * betaInner(i))).sum
+            sumWxrC += w * x(iCol) * r
+            sumWxxC += w * x(iCol) * x(iCol)
+            sumWr += w * r
+            sumW += w
+          }
+          val avgWxr = sumWxrC / nrow
+          val avgWxx = sumWxxC / nrow
+
+          beta0Inner = beta0Inner + sumWr / sumW
+          val uncBeta = avgWxr + avgWxx * betaInner(iCol)
+          betaInner(iCol) = S(uncBeta, lam * alpha) / (avgWxx + lam * (1.0 - alpha))
+        }
+        val sumDiff = (for (n <- 0 until ncol) yield (abs(betaInner(n) - betaStart(n)))).sum
+        val sumBeta = (for (n <- 0 until ncol) yield abs(betaInner(n))).sum
+        distInner = sumDiff / sumBeta
+      }
+
+      println(iStep, iterIRLS, iterInner)
+
+      //if exit inner while loop, then set betaMiddle = betaMiddle and run through middle loop again.
+
+      //Check change in betaMiddle to see if IRLS is converged
+      val a = (for (i <- 0 until ncol) yield (abs(betaIRLS(i) - betaInner(i)))).sum
+      val b = (for (i <- 0 until ncol) yield abs(betaIRLS(i))).sum
+      distIRLS = a / (b + 0.0001)
+      val dBeta = for (i <- 0 until ncol) yield (betaInner(i) - betaIRLS(i))
+      val gradStep = 1.0
+      val temp = for (i <- 0 until ncol) yield (betaIRLS(i) + gradStep * dBeta(i))
+      betaIRLS = temp.toArray.clone
+    }
+
+    beta = betaIRLS.clone
+    beta0 = beta0IRLS
+    //    betaMat += beta.clone
+    //    beta0List += beta0
+
+    val nzBeta = for (index <- 0 until ncol if beta(index) != 0.0) yield index
+    //    for (q <- nzBeta) {
+    //      if (!nzList.contains(q)) {
+    //        nzList += q
+    //      }
+    //    }
+
+    (beta, beta0, nzBeta.toArray)
+    //    }
   }
 
   private def S(z: Double, gamma: Double): Double =
