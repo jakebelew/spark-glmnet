@@ -8,6 +8,7 @@ import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.rdd.RDD
 import scala.collection.mutable.MutableList
 import scala.math.{ abs, exp, sqrt }
+import TempTestUtil.verifyResults
 
 private[spark] class LogisticCoordinateDescent1 extends CoordinateDescentParams
   with Logging {
@@ -234,7 +235,8 @@ object LogisticCoordinateDescent1 extends Logging {
 
     println(nameList)
 
-    //verifyResults(stats, meanLabel, sdLabel, betaMat, beta0List, nameList)
+    verifyResults(stats, meanLabel, sdLabel, betaMat, beta0List)
+    verifyResults(nameList.toList)
 
     //TODO - Return actual lambdas once they are supplied as a list. Also return the column order and put that into the model as part of the history.
     val fullBetas = beta0List.zip(betaMat).map { case (b0, beta) => Vectors.dense(b0 +: beta) }
@@ -255,39 +257,5 @@ object LogisticCoordinateDescent1 extends Logging {
       sum = if (sum < -100) -100 else sum
     }
     1.0 / (1.0 + exp(-sum))
-  }
-
-  def verifyResults(stats: Stats3, meanLabel: Double, sdLabel: Double, betaMat: MutableList[Array[Double]], beta0List: MutableList[Double], nameList: IndexedSeq[String]) = {
-
-    // Sometimes passes 1e-14, sometimes doesn't
-    //val tolerance = 1e-14
-    val tolerance = 1e-12
-    val yTolerance = 1e-12
-
-    val expectedXmeans = FileUtil.readFile("results/logistic-regression/xMeans.txt")(0)
-      .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(stats.featuresMean.toArray, expectedXmeans, tolerance, "xMeans")
-
-    val expectedXSD = FileUtil.readFile("results/logistic-regression/xSDwithBesselsCorrection.txt")(0)
-      .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(stats.featuresStd.toArray, expectedXSD, tolerance, "xSD")
-
-    val expectedYmean = FileUtil.readFile("results/logistic-regression/yMean.txt")(0).toDouble
-    TestUtil.equalWithinTolerance(meanLabel, expectedYmean, yTolerance, "yMean")
-
-    val expectedYSD = FileUtil.readFile("results/logistic-regression/ySDwithBesselsCorrection.txt")(0).toDouble
-    TestUtil.equalWithinTolerance(sdLabel, expectedYSD, yTolerance, "ySD")
-
-    val expectedBetaMat = FileUtil.readFile("results/logistic-regression/betaMatWithBesselsCorrection.txt")
-      .map(_.split(",").map(_.toDouble)).toArray
-    TestUtil.equalWithinTolerance(betaMat.toArray, expectedBetaMat, tolerance, "betas")
-
-    val expectedBeta0List = FileUtil.readFile("results/logistic-regression/beta0List.txt")(0)
-      .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(beta0List.toArray, expectedBeta0List, tolerance, "beta0s")
-
-    val expectedNamelist = FileUtil.readFile("results/logistic-regression/namelist.txt")(0)
-      .split(",").map(_.trim).toArray
-    TestUtil.equal(nameList.toArray, expectedNamelist, "columnOrder")
   }
 }
