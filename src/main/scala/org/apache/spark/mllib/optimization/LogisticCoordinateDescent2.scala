@@ -3,12 +3,12 @@ package org.apache.spark.mllib.optimization
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.Logging
 import org.apache.spark.ml.classification.Stats3
-import org.apache.spark.mllib.{ FileUtil, TestUtil }
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.rdd.RDD
 import scala.collection.mutable.MutableList
 import scala.math.{ abs, exp, sqrt }
 import scala.annotation.tailrec
+import TempTestUtil.verifyResults
 
 private[spark] class LogisticCoordinateDescent2 extends CoordinateDescentParams
   with Logging {
@@ -49,11 +49,15 @@ object LogisticCoordinateDescent2 extends Logging {
     val labels = labelsSeq.toArray
     val xNormalized = xNormalizedSeq.map(_.toArray).toArray
     val lamMult = 0.93
-    //val alpha = 1.0
 
     val (lambdas, initialBeta0) = computeLambdasAndInitialBeta0(labels, xNormalized, alpha, lamMult, numLambdas, stats, numRows)
     // optimize(data, initialWeights, xy, lambdas, alpha, lamShrnk, maxIter, tol, numFeatures, numRows)
-    optimize(labels, xNormalized, lambdas, initialBeta0, alpha, stats, numRows)
+    val lambdasAndBetas = optimize(labels, xNormalized, lambdas, initialBeta0, alpha, stats, numRows)
+
+    //TODO - Return the column order and put that into the model as part of the history. Or better yet, 
+    // columnOrder should be calculated in the example code from the List of models containing the beta history using a util class
+    val columnOrder = determineColumnOrder(lambdasAndBetas.unzip._2)
+    lambdasAndBetas
   }
 
   //private def computeLambdas(xy: Array[Double], alpha: Double, lamShrnk: Double, lambdaRange: Int, numLambdas: Int, numRows: Long): Array[Double] = {
@@ -67,6 +71,7 @@ object LogisticCoordinateDescent2 extends Logging {
     //    val lambdaMult = exp(scala.math.log(lamShrnk) / lambdaRange)
     //    
     //---------------------------------------------------------------------------------------------------
+
     //number of rows and columns in x matrix
     val nrow = numRows.toInt
     val ncol = stats.numFeatures
@@ -106,6 +111,8 @@ object LogisticCoordinateDescent2 extends Logging {
     //var beta = Array.ofDim[Double](ncol)
     var beta0 = sumWr / sumW
 
+    // val lambdaMult = 0.93 //100 steps gives reduction by factor of 1000 in lambda (recommended by authors)
+
     //TODO - The following Array.iterate method can be used in the other CoordinateDescent objects to replace 13 lines of code with 1 line
     val lambdas = Array.iterate[Double](lamdaInit * lambdaMult, numLambdas)(_ * lambdaMult)
     (lambdas, beta0)
@@ -130,47 +137,31 @@ object LogisticCoordinateDescent2 extends Logging {
     val beta0List = MutableList.empty[Double]
     beta0List += beta0
 
-    //begin iteration
-    //    val nSteps = 100
-    //    val lamMult = 0.93 //100 steps gives reduction by factor of 1000 in lambda (recommended by authors)
-    //    var lam = lambdas(0) / lamMult
     val nzList = MutableList.empty[Int]
 
     loop(beta, beta0, 0)
 
     /*loop to decrement lambda and perform iteration for betas*/
-    @tailrec //def loop(oldBeta: Vector, n: Int): Unit = {
+    @tailrec
     def loop(oldBeta: Array[Double], oldBeta0: Double, n: Int): Unit = {
       if (n < lambdas.length) {
         val newLambda = lambdas(n)
-        val (newBeta, newBeta0, nzBeta) = outerLoop(n + 1, labels, xNormalized, oldBeta, oldBeta0, newLambda, alpha, stats.numFeatures, numRows)
+        val (newBeta, newBeta0) = outerLoop(n + 1, labels, xNormalized, oldBeta, oldBeta0, newLambda, alpha, stats.numFeatures, numRows)
         betaMat += newBeta.clone
         beta0List += newBeta0
-        //val nzBeta = for (index <- 0 until ncol if beta(index) != 0.0) yield index
-        for (q <- nzBeta) {
-          if (!nzList.contains(q)) {
-            nzList += q
-          }
-        }
         loop(newBeta, newBeta0, n + 1)
       }
     }
 
-    //make up names for columns of xNum
-    val names = for (i <- 0 until ncol) yield "V" + i
-    val nameList = for (i <- 0 until nzList.length) yield names(nzList(i))
+    verifyResults(stats, stats.yMean, stats.yStd, betaMat, beta0List)
 
-    println(nameList)
-
-    //verifyResults(stats, stats.yMean, stats.yStd, betaMat, beta0List, nameList)
-
-    //TODO - Return the column order and put that into the model as part of the history.
     val fullBetas = beta0List.zip(betaMat).map { case (b0, beta) => Vectors.dense(b0 +: beta) }
     lambdas.zip(fullBetas).toList
   }
 
   //private def cdIter(data: RDD[(Double, Vector)], oldBeta: Vector, newLambda: Double, alpha: Double, xy: Array[Double], xx: CDSparseMatrix, tol: Double, maxIter: Int, numFeatures: Int, numRows: Long): (Vector, Int) = {
-  private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], oldBeta0: Double, newLambda: Double, alpha: Double, numFeatures: Int, numRows: Long): (Array[Double], Double, Array[Int]) = {
+  //private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], oldBeta0: Double, newLambda: Double, alpha: Double, numFeatures: Int, numRows: Long): (Array[Double], Double, Array[Int]) = {
+  private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], oldBeta0: Double, newLambda: Double, alpha: Double, numFeatures: Int, numRows: Long): (Array[Double], Double) = {
     //    for (iStep <- 0 until nSteps) {
     //decrease lambda
     //lam = lam * lamMult
@@ -258,17 +249,7 @@ object LogisticCoordinateDescent2 extends Logging {
 
     beta = betaIRLS.clone
     beta0 = beta0IRLS
-    //    betaMat += beta.clone
-    //    beta0List += beta0
-
-    val nzBeta = for (index <- 0 until ncol if beta(index) != 0.0) yield index
-    //    for (q <- nzBeta) {
-    //      if (!nzList.contains(q)) {
-    //        nzList += q
-    //      }
-    //    }
-
-    (beta, beta0, nzBeta.toArray)
+    (beta, beta0)
     //    }
   }
 
@@ -287,38 +268,18 @@ object LogisticCoordinateDescent2 extends Logging {
     1.0 / (1.0 + exp(-sum))
   }
 
-  def verifyResults(stats: Stats3, meanLabel: Double, sdLabel: Double, betaMat: MutableList[Array[Double]], beta0List: MutableList[Double], nameList: IndexedSeq[String]) = {
-    // Sometimes passes 1e-14, sometimes doesn't
-    //val tolerance = 1e-14
-    val tolerance = 1e-12
-    val yTolerance = 1e-12
+  private def determineColumnOrder(betas: List[Vector]): Array[Int] = {
+    val nzList = betas
+      .map(_.toArray.drop(1).zipWithIndex.filter(_._1 != 0.0).map(_._2))
+      .flatMap(f => f)
+      .distinct
 
-    val expectedXmeans = FileUtil.readFile("results/logistic-regression/xMeans.txt")(0)
-      .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(stats.featuresMean.toArray, expectedXmeans, tolerance, "xMeans")
+    //make up names for columns of xNum
+    val nameList = nzList.map(index => s"V$index")
 
-    val expectedXSD = FileUtil.readFile("results/logistic-regression/xSDwithBesselsCorrection.txt")(0)
-      .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(stats.featuresStd.toArray, expectedXSD, tolerance, "xSD")
+    println(nameList)
+    verifyResults(nameList)
 
-    val expectedYmean = FileUtil.readFile("results/logistic-regression/yMean.txt")(0).toDouble
-    TestUtil.equalWithinTolerance(meanLabel, expectedYmean, yTolerance, "yMean")
-
-    val expectedYSD = FileUtil.readFile("results/logistic-regression/ySDwithBesselsCorrection.txt")(0).toDouble
-    TestUtil.equalWithinTolerance(sdLabel, expectedYSD, yTolerance, "ySD")
-
-    val expectedBetaMat = FileUtil.readFile("results/logistic-regression/betaMatWithBesselsCorrection.txt")
-      .map(_.split(",").map(_.toDouble)).toArray
-    TestUtil.equalWithinTolerance(betaMat.toArray, expectedBetaMat, tolerance, "betas")
-
-    val expectedBeta0List = FileUtil.readFile("results/logistic-regression/beta0List.txt")(0)
-      .split(",").map(_.toDouble).toArray
-    TestUtil.equalWithinTolerance(beta0List.toArray, expectedBeta0List, tolerance, "beta0s")
-
-    val expectedNamelist = FileUtil.readFile("results/logistic-regression/namelist.txt")(0)
-      .split(",").map(_.trim).toArray
-    TestUtil.equal(nameList.toArray, expectedNamelist, "columnOrder")
-
-    println("\nResults Verified\n")
+    nzList.toArray
   }
 }
