@@ -128,7 +128,7 @@ object LogisticCoordinateDescent3 extends Logging {
     //this value of lambda corresponds to beta = list of 0's
     //initialize a vector of coefficients beta
     var beta = Array.ofDim[Double](ncol)
-    var beta0 = sumWr / sumW
+    val beta0 = sumWr / sumW
 
     //initialize matrix of betas at each step
     val betaMat = MutableList.empty[Array[Double]]
@@ -145,14 +145,16 @@ object LogisticCoordinateDescent3 extends Logging {
       //decrease lambda
       lam = lam * lamMult
 
-      val (newBeta, newBeta0) = outerLoop(iStep, labels, xNormalized, beta, beta0, lam, alpha, ncol, numRows)
+      //val (newBeta, newBeta0) = outerLoop(iStep, labels, xNormalized, beta, beta0, lam, alpha, ncol, numRows)
+      val newBeta = outerLoop(iStep, labels, xNormalized, beta, beta0, lam, alpha, ncol, numRows)
       beta = newBeta
-      beta0 = newBeta0
+      //beta0 = newBeta0
 
       betaMat += newBeta.clone
       //println("betaMat:")
       //betaMat.foreach(f => println(f.mkString(",")))
-      beta0List += newBeta0
+      //beta0List += newBeta0
+      beta0List += beta0
       //println(s"betaIRLS: ${beta0List.mkString(",")}")
 
       val nzBeta = for (index <- 0 until ncol if beta(index) != 0.0) yield index
@@ -178,36 +180,23 @@ object LogisticCoordinateDescent3 extends Logging {
     lambdas.zip(fullBetas).toList
   }
 
-  private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], oldBeta0: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Array[Double], Double) = {
-    val nrow = numRows.toInt
-    val ncol = numColumns
-
+  private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], beta0: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): Array[Double] = {
     //Use incremental change in betas to control inner iteration
-
     //set middle loop values for betas = to outer values
     // values are used for calculating weights and probabilities
     //inner values are used for calculating penalized regression updates
-
     //take pass through data to calculate averages over data require for iteration
     //initilize accumulators
 
-    var betaIRLS = oldBeta.clone
-    val beta0IRLS = oldBeta0
-    var distIRLS = 100.0
-    //Middle loop to calculate new betas with fixed IRLS weights and probabilities
-    var iterIRLS = 0
-    while (distIRLS > 0.01) {
-      iterIRLS += 1
-      val (newBetaIRLS, newDistIRLS) = middleLoop(iStep, iterIRLS, labels, xNormalized, betaIRLS, beta0IRLS, lambda, alpha, ncol, numRows)
-      betaIRLS = newBetaIRLS
-      distIRLS = newDistIRLS
+    def loop(iterIRLS: Int, betaIRLS: Array[Double], distIRLS: Double): Array[Double] = {
+      if (distIRLS <= 0.01) betaIRLS
+      else {
+        val (newBetaIRLS, newDistIRLS) = middleLoop(iStep, iterIRLS, labels, xNormalized, betaIRLS, beta0, lambda, alpha, numColumns, numRows)
+        loop(0, newBetaIRLS, newDistIRLS)
+      }
     }
 
-    val beta = betaIRLS.clone
-    //println(s"beta: ${beta.mkString(",")}")
-    val beta0 = beta0IRLS
-    //println(s"beta0: ${beta0}")
-    (beta, beta0)
+    loop(0, oldBeta, 100.0)
   }
 
   private def middleLoop(iStep: Int, iterIRLS: Int, labels: Array[Double], xNormalized: Array[Array[Double]], betaIRLS: Array[Double], beta0IRLS: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Array[Double], Double) = {
