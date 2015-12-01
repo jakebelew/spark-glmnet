@@ -180,7 +180,6 @@ object LogisticCoordinateDescent3 extends Logging {
   private def outerLoop(iStep: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBeta: Array[Double], oldBeta0: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Array[Double], Double) = {
     val nrow = numRows.toInt
     val ncol = numColumns
-    val lam = lambda
 
     //Use incremental change in betas to control inner iteration
 
@@ -198,7 +197,7 @@ object LogisticCoordinateDescent3 extends Logging {
     var iterIRLS = 0
     while (distIRLS > 0.01) {
       iterIRLS += 1
-      val (newBetaIRLS, newDistIRLS) = middleLoop(iStep, iterIRLS, labels, xNormalized, betaIRLS, beta0IRLS, lam, alpha, ncol, numRows)
+      val (newBetaIRLS, newDistIRLS) = middleLoop(iStep, iterIRLS, labels, xNormalized, betaIRLS, beta0IRLS, lambda, alpha, ncol, numRows)
       betaIRLS = newBetaIRLS
       distIRLS = newDistIRLS
     }
@@ -210,12 +209,9 @@ object LogisticCoordinateDescent3 extends Logging {
     (beta, beta0)
   }
 
-  private def middleLoop(iStep: Int, iterIRLS: Int, labels: Array[Double], xNormalized: Array[Array[Double]], oldBetaIRLS: Array[Double], oldBeta0IRLS: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Array[Double], Double) = {
-    var betaIRLS = oldBetaIRLS
-    val beta0IRLS = oldBeta0IRLS
+  private def middleLoop(iStep: Int, iterIRLS: Int, labels: Array[Double], xNormalized: Array[Array[Double]], betaIRLS: Array[Double], beta0IRLS: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Array[Double], Double) = {
     val nrow = numRows.toInt
     val ncol = numColumns
-    val lam = lambda
 
     var iterInner = 0
 
@@ -240,17 +236,13 @@ object LogisticCoordinateDescent3 extends Logging {
     //println(s"distIRLS: ${distIRLS}")
     val dBeta = for (i <- 0 until ncol) yield (betaInner(i) - betaIRLS(i))
     val gradStep = 1.0
-    val temp = for (i <- 0 until ncol) yield (betaIRLS(i) + gradStep * dBeta(i))
-    betaIRLS = temp.toArray.clone
-    //println(s"betaIRLS: ${betaIRLS.mkString(",")}")  
-
-    (betaIRLS, distIRLS)
+    val newBetaIRLS = for (i <- 0 until ncol) yield (betaIRLS(i) + gradStep * dBeta(i))
+    (newBetaIRLS.toArray, distIRLS)
   }
 
   private def innerLoop(labels: Array[Double], xNormalized: Array[Array[Double]], oldBetaInner: Array[Double], oldBeta0Inner: Double, beta0IRLS: Double, betaIRLS: Array[Double], lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Double, Double, Array[Double]) = {
     val nrow = numRows.toInt
     val ncol = numColumns
-    val lam = lambda
 
     var beta0Inner = oldBeta0Inner
     var betaInner = oldBetaInner
@@ -285,7 +277,7 @@ object LogisticCoordinateDescent3 extends Logging {
       beta0Inner = beta0Inner + sumWr / sumW
       //println(s"beta0Inner: ${beta0Inner}")
       val uncBeta = avgWxr + avgWxx * betaInner(iCol)
-      betaInner(iCol) = S(uncBeta, lam * alpha) / (avgWxx + lam * (1.0 - alpha))
+      betaInner(iCol) = S(uncBeta, lambda * alpha) / (avgWxx + lambda * (1.0 - alpha))
       //println(s"betaInner(iCol): ${betaInner(iCol)}")
     }
     val sumDiff = (for (n <- 0 until ncol) yield (abs(betaInner(n) - betaStart(n)))).sum
