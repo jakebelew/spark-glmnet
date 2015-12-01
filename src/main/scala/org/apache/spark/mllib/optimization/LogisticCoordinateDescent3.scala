@@ -6,6 +6,7 @@ import org.apache.spark.ml.classification.Stats3
 import org.apache.spark.mllib.{ FileUtil, TestUtil }
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.rdd.RDD
+import scala.annotation.tailrec
 import scala.collection.mutable.MutableList
 import scala.math.{ abs, exp, sqrt }
 import TempTestUtil.verifyResults
@@ -212,18 +213,17 @@ object LogisticCoordinateDescent3 extends Logging {
   private def middleLoop(iStep: Int, iterIRLS: Int, labels: Array[Double], xNormalized: Array[Array[Double]], betaIRLS: Array[Double], beta0IRLS: Double, lambda: Double, alpha: Double, numColumns: Int, numRows: Long): (Array[Double], Double) = {
     val nrow = numRows.toInt
     val ncol = numColumns
-
-    var iterInner = 0
-
     val betaInner = betaIRLS.clone
-    var beta0Inner = beta0IRLS
-    var distInner = 100.0
-    while (distInner > 0.01 && iterInner < 100) {
-      iterInner += 1
-      val (newDistInner, newBeta0Inner, newBetaInner) = innerLoop(labels, xNormalized, betaInner, beta0Inner, beta0IRLS, betaIRLS, lambda, alpha, numColumns, numRows)
-      distInner = newDistInner
-      beta0Inner = newBeta0Inner
+    
+    @tailrec
+    def loop(iterInner: Int, distInner: Double, beta0Inner: Double): Int = {
+      if (distInner > 0.01 && iterInner < 100) {
+        val (newDistInner, newBeta0Inner, newBetaInner) = innerLoop(labels, xNormalized, betaInner, beta0Inner, beta0IRLS, betaIRLS, lambda, alpha, numColumns, numRows)
+        loop(iterInner + 1, newDistInner, newBeta0Inner)
+      } else iterInner
     }
+
+    val iterInner = loop(0, 100.0, beta0IRLS)
 
     println(iStep, iterIRLS, iterInner)
 
