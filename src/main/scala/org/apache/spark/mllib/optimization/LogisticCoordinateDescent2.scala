@@ -72,29 +72,13 @@ object LogisticCoordinateDescent2 extends Logging {
     //    
     //---------------------------------------------------------------------------------------------------
 
-    //number of rows and columns in x matrix
     val nrow = numRows.toInt
     val ncol = stats.numFeatures
     val meanLabel = stats.yMean
 
-    //initialize probabilities and weights
-    var sumWxr = Array.ofDim[Double](ncol)
-    var sumWxx = Array.ofDim[Double](ncol)
-    var sumWr = 0.0
-    var sumW = 0.0
-
     //calculate starting points for betas
-    for (iRow <- 0 until nrow) {
-      val p = meanLabel
-      val w = p * (1.0 - p)
-      //residual for logistic
-      val r = (labels(iRow) - p) / w
-      val x = xNormalized(iRow)
-      sumWxr = (for (i <- 0 until ncol) yield (sumWxr(i) + w * x(i) * r)).toArray
-      sumWxx = (for (i <- 0 until ncol) yield (sumWxx(i) + w * x(i) * x(i))).toArray
-      sumWr = sumWr + w * r
-      sumW = sumW + w
-    }
+    val (sumWxr, sumWxx, sumWr, sumW) = new ComputeInitialWeights(meanLabel).aggregate(labels, xNormalized, nrow, ncol)
+
     val avgWxr = for (i <- 0 until ncol) yield sumWxr(i) / nrow
     val avgWxx = for (i <- 0 until ncol) yield sumWxx(i) / nrow
 
@@ -104,12 +88,10 @@ object LogisticCoordinateDescent2 extends Logging {
       maxWxr = if (value > maxWxr) value else maxWxr
     }
     //calculate starting value for lambda
-    var lamdaInit = maxWxr / alpha
+    val lamdaInit = maxWxr / alpha
 
     //this value of lambda corresponds to beta = list of 0's
-    //initialize a vector of coefficients beta
-    //var beta = Array.ofDim[Double](ncol)
-    var beta0 = sumWr / sumW
+    val beta0 = sumWr / sumW
 
     // val lambdaMult = 0.93 //100 steps gives reduction by factor of 1000 in lambda (recommended by authors)
 
@@ -118,14 +100,39 @@ object LogisticCoordinateDescent2 extends Logging {
     (lambdas, beta0)
   }
 
+  private class ComputeInitialWeights(p: Double) {
+    val w = p * (1.0 - p)
+
+    def aggregate(labels: Array[Double], xNormalized: Array[Array[Double]], nrow: Int, ncol: Int): (Array[Double], Array[Double], Double, Double) = {
+      var sumWxr = Array.ofDim[Double](ncol)
+      var sumWxx = Array.ofDim[Double](ncol)
+      var sumWr = 0.0
+      var sumW = 0.0
+
+      for (iRow <- 0 until nrow) {
+        //residual for logistic
+        val r = (labels(iRow) - p) / w
+        val x = xNormalized(iRow)
+        val wr = w * r
+        sumWxr = (for (i <- 0 until ncol) yield (sumWxr(i) + wr * x(i))).toArray
+        sumWxx = (for (i <- 0 until ncol) yield (sumWxx(i) + w * x(i) * x(i))).toArray
+        sumWr = sumWr + wr
+        sumW = sumW + w
+      }
+      (sumWxr, sumWxx, sumWr, sumW)
+    }
+  }
+
   private def optimize(labels: Array[Double], xNormalized: Array[Array[Double]], lambdas: Array[Double], initialBeta0: Double, alpha: Double, stats: Stats3, numRows: Long): List[(Double, Vector)] = {
     //initial value of lambda corresponds to beta = list of 0's
     var beta = Array.ofDim[Double](stats.numFeatures)
     val beta0 = initialBeta0
 
     val betaMat = MutableList.empty[Array[Double]]
+    //TODO - Do not return the initial beta value of all zero's, only return a list of 100
     betaMat += beta.clone
 
+    //TODO - beta0 does not change value, so no need to collect it in a list    
     val beta0List = MutableList.empty[Double]
     beta0List += beta0
 
@@ -147,6 +154,7 @@ object LogisticCoordinateDescent2 extends Logging {
 
     verifyResults(stats, stats.yMean, stats.yStd, betaMat, beta0List)
 
+    //TODO - Do not combine beta0 with the other betas, return it as a separate member of the tuples -> List[(Double, Double, Vector)]
     val fullBetas = beta0List.zip(betaMat).map { case (b0, beta) => Vectors.dense(b0 +: beta) }
     lambdas.zip(fullBetas).toList
   }
