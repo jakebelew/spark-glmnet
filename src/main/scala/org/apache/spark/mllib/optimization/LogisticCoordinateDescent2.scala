@@ -118,20 +118,11 @@ object LogisticCoordinateDescent2 extends Logging {
     (lambdas, beta0)
   }
 
-  //private def runScala(data: RDD[(Double, Vector)], stats: Stats3, numRows: Long): List[(Double, Vector)] = {
   private def optimize(labels: Array[Double], xNormalized: Array[Array[Double]], lambdas: Array[Double], initialBeta0: Double, alpha: Double, stats: Stats3, numRows: Long): List[(Double, Vector)] = {
-
-    //number of rows and columns in x matrix
-    val nrow = numRows.toInt
-    val ncol = stats.numFeatures
-
     //initial value of lambda corresponds to beta = list of 0's
-    //initialize a vector of coefficients beta
-    var beta = Array.ofDim[Double](ncol)
-    //var beta0 = initialBeta0
+    var beta = Array.ofDim[Double](stats.numFeatures)
     val beta0 = initialBeta0
 
-    //initialize matrix of betas at each step
     val betaMat = MutableList.empty[Array[Double]]
     betaMat += beta.clone
 
@@ -140,19 +131,15 @@ object LogisticCoordinateDescent2 extends Logging {
 
     val nzList = MutableList.empty[Int]
 
-    //loop(beta, beta0, 0)
     loop(beta, 0)
 
     /*loop to decrement lambda and perform iteration for betas*/
-    @tailrec //def loop(oldBeta: Array[Double], oldBeta0: Double, n: Int): Unit = {
+    @tailrec
     def loop(oldBeta: Array[Double], n: Int): Unit = {
       if (n < lambdas.length) {
         val newLambda = lambdas(n)
-        //val (newBeta, newBeta0) = outerLoop(n + 1, labels, xNormalized, oldBeta, oldBeta0, newLambda, alpha, stats.numFeatures, numRows)
         val newBeta = outerLoop(n + 1, labels, xNormalized, oldBeta, beta0, newLambda, alpha, stats.numFeatures, numRows)
         betaMat += newBeta.clone
-        //        beta0List += newBeta0
-        //        loop(newBeta, newBeta0, n + 1)
         beta0List += beta0
         loop(newBeta, n + 1)
       }
