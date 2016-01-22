@@ -22,12 +22,12 @@ import org.apache.spark.Logging
 import org.apache.spark.ml.PredictorParams
 import org.apache.spark.ml.param.{ ParamMap, Params, IntParam, ParamValidators }
 import org.apache.spark.ml.param.shared._
-import org.apache.spark.ml.regression.{ HasOptimizerVersion, HasLambdaIndex, HasLambdaShrink, HasNumLambdas, Regressor, RegressionModel }
+import org.apache.spark.ml.regression.{ HasLambdaIndex, HasLambdaShrink, HasNumLambdas, Regressor, RegressionModel }
 import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.mllib.feature.{ StandardScaler, StandardScalerModel }
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.BLAS._
-import org.apache.spark.mllib.optimization.{ CoordinateDescentParams, LogisticCoordinateDescent2 => CD }
+import org.apache.spark.mllib.optimization.{ CoordinateDescentParams, LogisticCoordinateDescent }
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.stat.MultivariateOnlineSummarizer_Modified
 import org.apache.spark.rdd.RDD
@@ -42,14 +42,10 @@ import scala.collection.mutable.MutableList
  * Params for linear regression.
  */
 private[spark] trait LogisticRegressionWithCDParams extends PredictorParams with HasLambdaIndex with HasElasticNetParam
-  with HasNumLambdas with HasMaxIter with HasTol with HasLambdaShrink with HasFitIntercept with HasOptimizerVersion {
+  with HasNumLambdas with HasMaxIter with HasTol with HasLambdaShrink with HasFitIntercept {
 
   def setLambdaIndex(value: Int): this.type = set(lambdaIndex, value)
   setDefault(lambdaIndex -> 99)
-
-  //TODO - Temporary param to allow testing multiple versions of CoordinateDescent with minimum code duplication
-  def setOptimizerVersion(value: Int): this.type = set(optimizerVersion, value)
-  setDefault(optimizerVersion -> 1)
 
   /**
    * Set the ElasticNet mixing parameter.
@@ -104,22 +100,12 @@ private[spark] trait LogisticRegressionWithCDParams extends PredictorParams with
   setDefault(fitIntercept -> true)
 }
 
-class LogisticRegressionWithCD1(override val uid: String)
-  extends Regressor[Vector, LogisticRegressionWithCD1, LogisticRegressionWithCDModel]
+class LogisticRegressionWithCD(override val uid: String)
+  extends Regressor[Vector, LogisticRegressionWithCD, LogisticRegressionWithCDModel]
   with LogisticRegressionWithCDParams with Logging {
 
   def this() = this(Identifiable.randomUID("linReg"))
 
-  /**
-   * Fits multiple models to the input data with multiple sets of parameters.
-   * The default implementation uses a for loop on each parameter map.
-   * Subclasses could override this to optimize multi-model training.
-   *
-   * @param dataset input dataset
-   * @param paramMaps An array of parameter maps.
-   *                  These values override any specified in this Estimator's embedded ParamMap.
-   * @return fitted models, matching the input parameter maps
-   */
   override def fit(dataset: DataFrame, paramMaps: Array[ParamMap]): Seq[LogisticRegressionWithCDModel] = {
     fit(dataset, fitMultiModel, paramMaps)
   }
@@ -128,7 +114,7 @@ class LogisticRegressionWithCD1(override val uid: String)
     fit(dataset, fitSingleModel)(0)
   }
 
-  private def newOptimizer = new CD
+  private def newOptimizer = new LogisticCoordinateDescent
 
   private val fitMultiModel = (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats3, paramMaps: Array[ParamMap]) => {
     val boundaryIndices = new Range(0, paramMaps.length, $(numLambdas))
@@ -159,9 +145,7 @@ class LogisticRegressionWithCD1(override val uid: String)
     Seq(model)
   }
 
-  // f: (normalizedInstances: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], numRows: Long, stats: Stats, paramMaps: Array[ParamMap])
   private def fit(dataset: DataFrame, f: (RDD[(Double, Vector)], Vector, Array[Double], Long, Stats3, Array[ParamMap]) => Seq[LogisticRegressionWithCDModel], paramMaps: Array[ParamMap] = Array()): Seq[LogisticRegressionWithCDModel] = {
-    // paramMaps.map(fit(dataset, _))
 
     val (normalizedInstances, stats) = normalizeDataSet(dataset)
     val handlePersistence = dataset.rdd.getStorageLevel == StorageLevel.NONE
@@ -298,7 +282,7 @@ class LogisticRegressionWithCD1(override val uid: String)
     }
   }
 
-  override def copy(extra: ParamMap): LogisticRegressionWithCD1 = defaultCopy(extra)
+  override def copy(extra: ParamMap): LogisticRegressionWithCD = defaultCopy(extra)
 }
 
 case class Stats3(summarizer: MultivariateOnlineSummarizer_Modified, statCounter: StatCounter) {

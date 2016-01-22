@@ -10,12 +10,12 @@ import scala.math.{ abs, exp, sqrt }
 import scala.annotation.tailrec
 import TempTestUtil.verifyResults
 
-private[spark] class LogisticCoordinateDescent2 extends CoordinateDescentParams
+private[spark] class LogisticCoordinateDescent extends CoordinateDescentParams
   with Logging {
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], stats: Stats3, numRows: Long): List[(Double, Vector)] = {
-    println("\nExecuting LogisticCoordinateDescent2\n")
-    LogisticCoordinateDescent2.runCD(
+    println("\nExecuting LogisticCoordinateDescent\n")
+    LogisticCoordinateDescent.runCD(
       data,
       initialWeights,
       xy,
@@ -40,7 +40,7 @@ private[spark] class LogisticCoordinateDescent2 extends CoordinateDescentParams
  * Top-level method to run coordinate descent.
  */
 @DeveloperApi
-object LogisticCoordinateDescent2 extends Logging {
+object LogisticCoordinateDescent extends Logging {
 
   def runCD(data: RDD[(Double, Vector)], initialWeights: Vector, xy: Array[Double], alpha: Double, lamShrnk: Double, numLambdas: Int, maxIter: Int, tol: Double, stats: Stats3, numRows: Long): List[(Double, Vector)] = {
     logInfo(s"Performing coordinate descent with: [elasticNetParam: $alpha, lamShrnk: $lamShrnk, numLambdas: $numLambdas, maxIter: $maxIter, tol: $tol]")
