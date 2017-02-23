@@ -1,8 +1,8 @@
 # spark-glmnet
 
-### glmnet -  “Regularization Paths for Generalized Linear Models via Coordinate Descent"
+### glmnet -  “Lasso and Elastic-Net Regularized Generalized Linear Models"
 
-The developers coded, in Scala, the algorithm  “Regularization Paths for Generalized Linear Models via Coordinate Descent” by Jerome Friedman, Trevor Hastie and Rob Tibshirani of Stanford University (http://web.stanford.edu/~hastie/Papers/glmnet.pdf).  The algorithm is typically referred to as “glmnet” - generalized linear model with elastic net regularization.  Elastic net is the combination of the ridge and lasso regularization methods.  This algorithm is generally faster than traditional methods such as linear regression and is particularly well suited for “fat” datasets (many more features than events).
+A Scala implementation of the "Lasso and Elastic-Net Regularized Generalized Linear Models" for Spark MLlib from "Regularization Paths for Generalized Linear Models via Coordinate Descent" by Jerome Friedman, Trevor Hastie and Rob Tibshirani of Stanford University (http://web.stanford.edu/~hastie/Papers/glmnet.pdf). The algorithm is typically referred to as “glmnet” - generalized linear model with elastic net regularization. Elastic net is the combination of the ridge and lasso regularization methods. This algorithm is generally faster than traditional methods such as linear regression and is particularly well suited for “fat” datasets (many more features than events).
 
 ### Spark MLlib
 
@@ -43,7 +43,3 @@ Following is the process that glmnet executes:
 	* It will run the data in K=2 folds, with alpha = 0.2 and 0.3, and 100 lambda values.
 	* It will choose the “Best fit” combination of alpha and lambda and generate a model on the entire training data set using the chosen alpha and lambda.
 	* It will generate test data and run the resulting model on the test data and display the accuracy of that model on the test data.
-
-### To pick up modifications to the glmnet project log4j file    
-	(If you modify the log4j file in order to control display logging of linear regression information)   
-	Project -> Clean   
